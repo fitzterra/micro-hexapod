@@ -2,4 +2,3 @@
 *.pyc
 .direnv
 .envrc
-micropython*.bin

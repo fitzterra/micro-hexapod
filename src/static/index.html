@@ -1,0 +1,91 @@
+<!DOCTYPE HTML>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Micro Hexapod</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+        <link rel="stylesheet" type="text/css" href="static/style.css">
+        <script src="static/ajax.js"></script>
+        <script src="static/app.js" defer></script>
+    </head>
+
+    <body>
+        <div class="viewport">
+            <p class="sitehead">Micro Hexapod</p>
+
+            <div class="sect control">
+
+                <div class="nav">
+                    <span class="material-icons" onclick="navChange(event, 'control');">videogame_asset</span>
+                </div>
+
+                <div class="servo">
+                    <div class="overlay"></div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th colspan=4>Servo Control</th>
+                            </tr>
+                            <tr>
+                                <th></th>
+                                <th>Left</th>
+                                <th>Mid</th>
+                                <th>Right</th> 
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="trim">
+                                <th>Trim</th>
+                                <td>
+                                    <input type="number" name="left.trim" min=-10 max=10 step=1>°
+                                </td>
+                                <td>
+                                    <input type="number" name="mid.trim" min=-10 max=10 step=1>°
+                                </td>
+                                <td>
+                                    <input type="number" name="right.trim" min=-10 max=10 step=1>°
+                                </td>
+                            </tr>
+                            <tr class="phase">
+                                <th>Phase</th>
+                                <td>
+                                    <input type="number" name="left.phase" min=0 max=180 step=45>°
+                                </td>
+                                <td>
+                                    <input type="number" name="mid.phase" min=0 max=180 step=45>°
+                                </td>
+                                <td>
+                                    <input type="number" name="right.phase" min=0 max=180 step=45>°
+                                </td>
+                            </tr>
+                            <tr class="speed">
+                                <th>Speed</th>
+                                <td colspan=3>
+                                    <div class="range-wrap">
+                                        <input type="range" class="range" name="speed">
+                                        <output class="bubble"></output>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr class="playpause">
+                                <td colspan=4 class="playpause">
+                                    <span
+                                        class="material-icons"
+                                        onclick="pauseToggle(event);"
+                                    >
+                                        pause_circle
+                                    </span>
+                                </td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <div class='app_version'>Version: <span></span></div>
+        </div>
+
+    </body>
+</html>

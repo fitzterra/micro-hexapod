@@ -1,0 +1,5 @@
+*.mpy
+*.pyc
+.direnv
+.envrc
+micropython*.bin

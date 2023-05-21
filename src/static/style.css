@@ -1,0 +1,178 @@
+body {
+    background: #252525;
+    color: #ccc;
+    /***
+     * Changing this font size should scale the full site accordingly.
+     * The only other thing to manually change are checkboxes. See for the
+     * config section input below.
+     * */
+    font: 48px sans-serif;
+    white-space: nowrap;
+}
+
+.viewport {
+    /* Centers the viewport both horizontally and vertically on the page. */
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border: 1px solid #555;
+    padding: 10px;
+    border-radius: 0.4em;
+    box-shadow: 4px 4px 8px #111;
+    max-width: 90%;
+}
+
+.sitehead {
+    text-align: center;
+    font-size: 150%;
+    font-weight: bolder;
+    margin: 0px 0px 18px 0px;
+    text-shadow: 1px 2px 2px #999;
+    color: #5D8BE0;
+}
+
+/*<<<< Navigation block at the top of each section >>>>*/
+div.nav {
+    position: relative;
+    top: -10px;
+    background: #101010;
+    border-radius: 0.4em;
+    font-size: 60%;
+    padding: 0.2em 0.2em 0;
+}
+
+div.nav span {
+    font-size: 150%;
+    cursor: pointer;
+}
+div.nav span:hover {
+    color: #379237;
+}
+
+div.nav span.refresh {
+    position: absolute;
+    right: 0px;
+}
+/*>>> END: Navigation block <<<*/
+
+/*<<< Error message blinker >>>*/
+.err_blinker {
+    color: #a22;
+    animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+/*>>> END: Error message blinker <<<*/
+
+/*>>> Range sliders styling. <<<*/
+.range-wrap {
+  position: relative;
+  /*margin: 0 auto 3rem;*/
+  height: 1em;
+  /* To reset the body.white-space: nowrap or else the bubble is not below the slider. */
+  white-space: normal;
+}
+.range {
+  width: 100%;
+}
+.bubble {
+  background: #0ab59d;
+  color: #002f31;
+  padding: 2px 8px;
+  position: absolute;
+  border-radius: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 30%;
+  top: 110%;
+  height: 30%;
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #0ab59d;
+  top: -1px;
+  left: 50%;
+}
+/*>>> END: Range sliders styling. <<<*/
+
+/*<<<< Overlay styling to disable underlying elements >>>>*/
+/** NOTE: To create an overlay in any block, the parent blocks needs to have a
+ * position of relative or sticky applied, or else the overlay will not fully
+ * cover the block.
+ * Then just add:
+ * <div class="overlay"><div>
+ * to the parent block, and control the overlay from JS using the display
+ * property.
+ **/
+div.overlay {
+    position: absolute;
+    display: none;
+    height: 100%;
+    width: 100%;
+    background-color: black;
+    opacity: 80%;
+    z-index: 1000;
+    border-radius: 0.4em;
+}
+/*<<< Control section >>>*/
+
+/* The servo block needs a position for the overlay to cover it completely. See
+ * the comment for the overlay styling. */
+div.sect.control div.servo {
+    position: relative;
+}
+
+/* This on the table ensures column width are equally sized */
+div.sect.control table {
+    table-layout: fixed;
+    width: 100%;
+}
+/* Without this, input fields inside the table are not relative to the global
+ * font size. */
+div.sect.control table td input {
+    font-size: inherit;
+}
+
+/* Input fields for trim and phase shifts */
+div.sect.control table th,
+div.sect.control table td {
+    text-align: center;
+    font-size: smaller;
+}
+
+/* Number Input fields */
+div.sect.control table input[type=number] {
+    width: 2em;
+    height: 1em;
+    font-size: smaller;
+}
+div.sect.control table tr.phase input[type=number] {
+    width: 2.5em;
+}
+
+/* Pause/Play control table row and span button */
+div.sect.control table td.playpause {
+    padding-top: 1em;
+}
+div.sect.control table td.playpause span {
+    font-size: larger;
+}
+/*<<< END: Control section >>>*/
+
+
+div.app_version {
+	font-size: small;
+	position: relative;
+	left: 0px;
+	bottom: 0px;
+	color: #888;
+}
+

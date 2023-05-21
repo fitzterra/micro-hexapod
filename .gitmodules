@@ -1,0 +1,9 @@
+[submodule "submodules"]
+	path = submodules
+	url = https://github.com/miguelgrinberg/microdot.git
+[submodule "submodules/microdot"]
+	path = submodules/microdot
+	url = https://github.com/miguelgrinberg/microdot.git
+[submodule "submodules/micropython-async"]
+	path = submodules/micropython-async
+	url = https://github.com/peterhinch/micropython-async.git

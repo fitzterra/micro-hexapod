@@ -4,3 +4,6 @@
 [submodule "submodules/micropython-tools"]
 	path = submodules/micropython-tools
 	url = git@gitlab.gaul.za:gaulnet/micropython-tools.git
+[submodule "submodules/microdot"]
+	path = submodules/microdot
+	url = https://github.com/miguelgrinberg/microdot.git

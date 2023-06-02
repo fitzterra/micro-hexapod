@@ -1,5 +1,5 @@
 [TYPECHECK]
-ignored-modules=uos,micropython,network,machine,utime,uasyncio,ulogging,microdot_asyncio,servo,map_to
+ignored-modules=uos,micropython,network,machine,utime,uasyncio,ulogging,microdot_asyncio,servo,map_to,ujson
 
 
 [BASIC]

@@ -2,15 +2,12 @@
 """
 Development server for device web interface.
 """
-import socket
-import random
-import datetime
 
 from bottle import (
     route, get, post, run, request, static_file
 )
 
-from config import conf
+from map_to import mapTo
 
 
 # Simulate: from version import VERSION
@@ -22,36 +19,32 @@ class Sim:
     Simulates the various hexapod calls available
     """
 
+    PERIOD_MAX = 3000
+    PERIOD_MIN = 500
+
     def __init__(self):
         """
         Class init.
         """
-        self.params = {
-            "servo": {
-                "mid": {
-                    "amplitude": conf['servo']['mid']['amplitude'],
-                    "phase_shift": conf['servo']['mid']['phase_shift'],
-                    "trim": conf['servo']['mid']['trim'],
-                },
-                "left": {
-                    "amplitude": conf['servo']['left']['amplitude'],
-                    "phase_shift": conf['servo']['left']['phase_shift'],
-                    "trim": conf['servo']['left']['trim'],
-                },
-                "right": {
-                    "amplitude": conf['servo']['right']['amplitude'],
-                    "phase_shift": conf['servo']['right']['phase_shift'],
-                    "trim": conf['servo']['right']['trim'],
-                }
+        self._period = 2000
+        self._paused = True
+        self.servos = {
+            "left": {
+                "amplitude": 30,
+                "phase_shift": 0,
+                "trim": 0,
             },
-            "paused": True,
-            "period": conf['period'],
+            "mid": {
+                "amplitude": 10,
+                "phase_shift": 90,
+                "trim": 0,
+            },
+            "right": {
+                "amplitude": 30,
+                "phase_shift": 0,
+                "trim": 0,
+            },
         }
-
-    @property
-    def speed(self):
-        """
-        """
 
     @property
     def speed(self):
@@ -97,36 +90,76 @@ class Sim:
                 0
             )
         )
-        self.setPeriod(period)
+        self._period = period
 
-    def _getNetconf(self):
+    def getParams(self):
         """
-        Returns the local IP as best it can
+        Returns all runtime parameters and their current values.
+
+        Returns:
+            The current params as a dictionary:
+            {
+                "servo": {
+                    "mid": {
+                        "amplitude": (int),
+                        "phase_shift": (int),
+                        "trim": (int)
+                    },
+                    "left": {
+                        "amplitude": (int),
+                        "phase_shift": (int),
+                        "trim": (int)
+                    },
+                    "right": {
+                        "amplitude": (int),
+                        "phase_shift": (int),
+                        "trim": (int)
+                    }
+                },
+                "paused": (bool),
+                "period": (int),
+                "speed": (float),   # Period as a % of min and max periods
+            }
         """
-        #pylint: disable=no-self-use
-        dat = {
-            'hostname': socket.gethostname(),
+        params = {
+            'period': self._period,
+            'speed': self.speed,
+            'paused': self._paused,
+            'servo': self.servos
         }
-        dat['ip'] = socket.gethostbyname(dat['hostname'])
 
-        return dat
+        return params
 
-    def _valveState(self):
+    def centerServos(self):
         """
-        Simulates getting the current valve status
+        Enters the pause state for all servos and then sets them to their
+        center position (90°) taking the trim for each servo into account.
         """
-        #pylint: disable=no-self-use
-        return random.choice(['Open', 'Closed', 'Unknown', 'Running'])
+        # The ServoOscillator has a center_servo() method that will auto pause
+        # the servos, but here we only have to set the global pause
+        self._paused = True
 
-    def status(self):
-        """
-        Returns the status structure
-        """
-        state = self._getNetconf()
-        state['valve_state'] = self._valveState()
-        state['app_version'] = VERSION
+        return self.getParams()
 
-        return state
+    def saveParams(self):
+        """
+        simulates saving the current parameters to persistent storage.
+        """
+        return self.getParams()
+
+    def steer(self, direct=None, angle=None):
+        """
+        Simulates the steer call.
+        """
+        print(f"Steering: direct={direct}, angle={angle}")
+
+        return {
+            'success': True,
+            'errors': None,
+        }
+
+
+sim = Sim()
 
 #######
 # Web routes
@@ -145,19 +178,12 @@ def index():
     """
     return static_file('index.html', root='./static')
 
-@route('/status')
-def vStatus():
+@route('/get_params')
+def getParams():
     """
-    Main entry point
+    Returns the current hexapod parameters.
     """
-    return sim.status()
-
-@route('/close_valve')
-def vClose():
-    """
-    Called to close the valve.
-    """
-    print("Closing valve....")
+    return sim.getParams()
 
 @route('/set_params', method='POST')
 def setParams():
@@ -171,8 +197,42 @@ def setParams():
     for key, val in dat.items():
         if key == "speed":
             print(f"Updating speed to {val}%")
-        else:
-            print(f"Unhandled parameter: {key}")
+            sim.speed = val
+            continue
+
+        # We do not set both speed and period if both are present. We favor
+        # speed and do not set period if speed is provided. To set period, do
+        # not not also provide the speed.
+        if key == "period":
+            if "speed" in dat:
+                print("Ignoring period update since speed is also provided.")
+            else:
+                print(f"Updating period to {val}")
+                sim._period = val
+            continue
+
+        if key == "paused":
+            print(f"Updating paused to {val}")
+            sim._paused = val
+            continue
+
+        if key == "servo":
+            for servo, params in val.items():
+                if not servo in sim.servos:
+                    errs.append(f"No servo named: {servo}")
+                    continue
+                for pkey, pval in params.items():
+                    if not pkey in ['amplitude', 'phase_shift', 'trim']:
+                        errs.append(f"Invalid param for servo {servo}: {pkey}")
+                        continue
+                    print(f"Updating servos['{servo}']['{pkey}'] to {pval}")
+                    sim.servos[servo][pkey] = pval
+            continue
+
+
+        err = f"Unhandled parameter: {key}"
+        print(err)
+        errs.append(err)
 
     res = {
         'success': True,
@@ -181,105 +241,28 @@ def setParams():
 
     return res
 
-@route('/home_valve')
-def vHome():
+@route('/center_servos', method='GET')
+def centerServos():
     """
-    Called to home the valve.
+    Called to center all servos.
     """
-    print("Homing valve....")
+    return sim.centerServos()
 
-@get('/conf')
-@post('/conf')
-def vConfig():
+@route('/save_params', method='GET')
+def saveParams():
     """
-    Config fetching and updating endpoint.
-
-    For a GET, we return the current config, for a POST, we expect to
-    receive the new config values, so we update the config and save
-    persistently.
+    Called to save the current parameters to persistent storage.
+    Returns the params that have been saved.
     """
-    global conf
+    return sim.saveParams()
 
-    # For a GET we simply return the config as is.
-    if request.method == 'GET':
-        return conf
-
-    # If not a POST, we moan
-    if request.method != 'POST':
-        raise ValueError("Only GET or POST allowed")
-
-    # We'll just assume we have the config data
+@route('/steer', method='POST')
+def steer():
+    """
+    Called to steer the hexapod
+    """
     dat = request.json
-    # Simulate booting
-    boot = False
-    errs = []
-    # Cycle though the post data an update the config
-    for key in dat:
-        if not key in conf:
-            errs.append((key, "Invalid config key"))
-            continue
-        # Set the new value, converting the received string value to the same
-        # type currently used in the config.
-        try:
-            conf[key][1] = type(conf[key][1])(dat[key])
-            # Check if a reboot will happen
-            boot = key.startswith('mqtt.')
-        except Exception as exc:
-            errs.append((key, "Error setting value %s: %s" % (dat[key], exc)))
+    return sim.steer(direct=dat.get('direct'), angle=dat.get('angle'))
 
-    res = {
-        'success': not errs,
-        'errors': errs,
-        'reboot': boot,
-    }
-
-    return res
-
-@get('/update_log')
-def otaUpdateLog():
-    """
-    If an update log file is available, redirect to a download link for it. If
-    not return a JSON error payload
-    """
-    if random.choice([True, False]):
-        return {"error": "No OTA update log file available."}
-
-    return static_file(ota_update_log, root='./', mimetype="text/plain")
-
-@get('/update_fw')
-def scheduleOTAUpdate():
-    """
-    Schedule an OTA update by writing the firmware update flag file to the
-    filesystem, and scheduling a reboot for the update to be attempted.
-
-    Returns:
-        The following structure as application/json content-type:
-
-        {
-            'success': bool,   # Indicates if schedule was set up
-            'err': str(exc)    # Only if success==False. Error message
-        }
-    """
-    # We simulate a 20% failure
-    if random.randint(1, 10) <= 2:
-        return {'success': False, 'err': 'The dice are cursed!'}
-
-    # Write some things to the update log to simulate a completed update
-    start = datetime.datetime.now()
-    pop = range(random.randint(10, 20))
-    sample = sorted(random.sample(pop, len(pop)//2))
-
-    with open(ota_update_log, 'w') as f:
-        f.write("--- Simulated update ---\n")
-        for n in sample:
-            log_t = (start + datetime.timedelta(seconds=n)).strftime("%Y-%m-%d %H:%M:%S")
-            what = random.choice(
-                ('happened', 'changed', 'was updated', 'was deleted', 'went wrong')
-            )
-            f.write(f"{log_t} : Something {what} here.\n")
-
-    return {'success': True}
-
-sim = Sim()
 
 run(host='0.0.0.0', port=5000, reloader=True, debug=True)

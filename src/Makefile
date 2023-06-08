@@ -82,6 +82,7 @@ MPY_SRC = boot.py \
 		  main.py \
 		  hexapod.py \
 		  config.py \
+		  webserver.py \
 		  website.py \
 		  lib/wemosD1_maps.py \
 		  lib/networking.py \
@@ -128,12 +129,13 @@ MP_SRC_PORT_DIR = $(MP_SRC_DIR)/ports/esp8266
 # firmware locally. This is especially useful for ESP8266 that has limit
 # runtime storage
 MP_SRC_MODULES = \
-    ~/devel/MicroPython/micropython-tools/led.py \
-    ~/devel/MicroPython/micropython-tools/map_to.py \
-    ~/devel/MicroPython/micropython-tools/servo.py \
-    ~/devel/MicroPython/microdot/src/microdot_asyncio.py \
-    ~/devel/MicroPython/microdot/src/microdot.py \
-    ~/devel/MicroPython/micropython-tools/ulogging.py \
+    ../submodules/micropython-tools/led.py \
+    ../submodules/micropython-tools/map_to.py \
+    ../submodules/micropython-tools/servo.py \
+    ../submodules/microdot/src/microdot_asyncio.py \
+    ../submodules/microdot/src/microdot.py \
+    ../submodules/microdot/src/microdot_cors.py \
+    ../submodules/micropython-tools/ulogging.py \
 
 # Determine the symlinked names of the MP source modules we want to bake into
 # the MP binary as frozen modules from the MP_SRC_MODULES list above.
@@ -223,6 +225,6 @@ build_micropython:
 	@echo Cleaning up all old modules...
 	@cd $(MP_SRC_PORT_DIR) && make clean-modules
 	@echo Linking all required modules to freeze into the MicroPython binary...
-	@cd $(MP_SRC_PORT_DIR)/modules && for m in $(MP_SRC_MODULES); do ln -s $$m; done
-	@echo Builing new MicroPython binary. This may take a a while with no output, so hang in there....
+	@cd $(MP_SRC_PORT_DIR)/modules && for m in $(realpath $(MP_SRC_MODULES)); do ln -s $$m; done
+	@echo Builing new MicroPython binary. This may take a while with no output, so hang in there....
 	@docker run --rm -v $$HOME:$$HOME -u $$UID -w $(MP_SRC_PORT_DIR) larsks/esp-open-sdk make -j BOARD=GENERIC

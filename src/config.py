@@ -1,8 +1,8 @@
 """
 General config file
 """
-from micropython import const
 import lib.wemosD1_maps as D1_map
+import ujson
 
 # This is the file name to use for storing the persisted config values.
 PERSISTED = "config_p.txt"
@@ -11,6 +11,9 @@ conf = {
     # Set True to enable debugging
     #'debug': False,
     'debug': True,
+
+    # The pins for the LEFT, MID and RIGHT servos
+    'pins': [D1_map.D5, D1_map.D6, D1_map.D7],
 
     # The servo pins - these are the actual GPIO pin numbers
     'servo': {
@@ -37,149 +40,16 @@ conf = {
     # The period is the same for all servos
     'period': 2000,
 
+    # The stroke is the amplitude of the left and right servos, and designates
+    # how far the legs moves per cycle (in degrees). The hexapod class will
+    # have a min and max stroke that will clip this setting if out of bounds.
+    'stroke': 30,
+
     # Web app
     'web_app': {
         'enabled': True,
     },
 }
-
-
-def expandFormats(topics):
-    """
-    Expand any strings that may have format specifiers in the config section
-    passed in.
-
-    This is only used for the MQTT topic names at the moment to allow easier
-    specification of a topics hierarchy - over engineered, but fun nonetheless
-    :-)
-    """
-    # Expand topics that contain format() specifiers.
-    # NOTE - In order to ensure we can have multiple levels of adding format
-    # specifiers, we over-engineer this thing by doing the following:
-    # * Loop forever until we break out forcibly:
-    #   * Get all topics as key:vals for only those topics that do not contain any
-    #     '{' character, i.e. does not have any replaceable parameters.
-    #   * Cycle though all topics, applying only the dict of key:topics that we got
-    #     before that does not have any replaceable values in the topic.
-    #   * If there were any changes, set a breakout flag to False so that we run
-    #     through again until no more changes were made
-    #   * After the replaceable params have been applied to all topics, and there
-    #     were no changes, (breakout flag is True), then break out of the forever
-    #     loop with force, else run through again
-    while True:
-        break_out = True  #pylint: disable=invalid-name
-        for k in topics:
-            if not '{' in topics[k]:
-                continue
-            old = topics[k]
-            topics[k] = topics[k].format(**topics)
-            # If anything changed, don't break out yet
-            if break_out and topics[k] != old:
-                break_out = False
-        if break_out:
-            break
-
-def updateConf(item, val, autotype=False, persist=False):
-    """
-    Allows a config value (in conf) to be changed, and optionally also
-    persisted between reboots.
-
-    The item to be set is the name of the config key using a dotted type
-    notation. For example setting conf['valve']['ppl'] to 77 and having
-    it persist, the call will be:
-
-        updateConf('valve.ppl', 77, persist=True)
-
-    Args:
-        item (str): The doted hierarchical name for the config key to set.
-        val (any) : The value to set. If persistence is needed, this value must
-            evaluate to a string representation using the repr(val) function,
-            and this string version must be able to be converted to original
-            value using eval later. In other words, this must be True:
-                val == eval(repr(val))
-        autotype (bool): If True, and the value being set is not of the same
-            type as the current value, and attempt will be made auto convert
-            `val` to the same type as the value currently has. This is mainly
-            helpful where the value is being set from an API that posts the new
-            value as string while it should be and int or similar. This only
-            works for simple types.
-        persist (bool): If True the item key and a string representation of the
-            value will be written to the file set by the PERSISTED constant.
-            All these persisted values will be read in and overwrite their
-            respective config values everytime this module is imported.
-
-    Returns:
-        None on success, or else and error message indicating any reason why
-        the change could not be done.
-    """
-    #print("Gonna set conf: %s = %s (%d)" % (item, val, persist))
-    # Find the relevant value key in conf to change
-    dest = conf
-    key = None
-    for k in item.split('.'):
-        if not k in dest:
-            return f"Not a valid key notation at {k} for {item}"
-        # Only go deeper if we can
-        if not isinstance(dest[k], dict):
-            key = k
-            break
-        dest = dest[k]
-
-    # If key is None, the last part in item points to a dict, meaning that val
-    # is a replacement for that whole dict - we do not currently support this.
-    if key is None:
-        return "Key notation points to dict which is not supported."
-
-    # Need to do an auto type conversion?
-    if autotype and type(val) != type(dest[key]):
-        val = type(dest[key])(val)
-
-    # Set the new value
-    dest[key] = val
-
-    # Persist?
-    if not persist:
-        return None
-
-    #pylint: disable=invalid-name
-
-    # Read all current persisted entries if any
-    persisted = []
-    try:
-        with open(PERSISTED, "r") as f:
-            persisted = f.readlines()
-    except OSError as exc:
-        # Error number 2 is ENOENT, meaning file does not exist, and this OK,
-        # but anything else is an error
-        # other error.
-        if exc.errno != 2:
-            return "Error persisting: %s" % exc
-
-    #print("Persisted: ", persisted)
-
-    # Now we will overwrite or create PERSISTED file and rewrite it, updating
-    # the changed entry, or adding it if we do not already have it.
-    try:
-        with open(PERSISTED, 'w') as f:
-            updated = False
-            # Cycle through all persisted entries, updating this one if it is
-            # there already, and then writing each line out.
-            # We store the item as 'item: repr(val)' in the persistence file.
-            for l in persisted:
-                if l.startswith('%s:' % item):
-                    l = "%s: %s\n" % (item, repr(val))
-                    updated = True
-                f.write(l)
-                #print("Wrote to PERSISTED:", l)
-
-            if not updated:
-                f.write("%s: %s\n" % (item, repr(val)))
-                #print("Wrote new item to PERSISTED:")
-
-    except Exception as exc: #pylint: disable=broad-except
-        return "Error persisting: %s" % exc
-
-    return None
 
 def getByDotKey(key, default=None):
     """
@@ -218,20 +88,73 @@ def getByDotKey(key, default=None):
 
     return default
 
+def persist(dat):
+    """
+    Saves the data structure in dat to persistent local storage.
+
+    This allow runtime configs to be saved between reboots.
+    The dat structure is expected to follow the same structure as the global
+    default conf structure. The idea is that first import of this module, any
+    persisted config will be used to overwrite the default values in conf.
+
+    The persisted data is saved in the file defined by PERSISTED, and is saved
+    in JSON format.
+
+    Returns:
+        None if successful, or an error string otherwise.
+    """
+    try:
+        with open(PERSISTED, 'w') as persisted:
+            ujson.dump(dat, persisted)
+    except Exception as exc: #pylint: disable=broad-except
+        return "Error persisting: %s" % exc
+
+    return None
+
+def updateDict(source, dest):
+    """
+    Recursively updates the destination dictionary from the source dictionary.
+
+    The destination can be any number of levels deep, but only exact key
+    structure matches in source, will update equivalent values in destination.
+
+    The idea is that the destination is some default dictionary structure, and
+    the source is a structure resembling the destination, although the full
+    structure does not necessarily have to be present in source. The parts in
+    source that are there, must match the exact same levels and structures as
+    in destination, or they will be ignored.
+
+    This is when some default values are overridden and saved during runtime,
+    and on new instantiation, the default destination is then updated from the
+    saved source.
+    """
+    # Run through all the keys at the current level
+    for key, val in source.items():
+        # Any key in source that is not in destination, we ignore
+        if key not in dest:
+            continue
+
+        # If the values for this key in the source is another dictionary, we
+        # need to descend into that dict recursively and update the destination
+        if isinstance(val, dict):
+            # We only do this if the dest value is also a dict, or else we
+            # ignore it
+            if isinstance(dest[key], dict):
+                updateDict(source[key], dest[key])
+            continue
+
+        # The values are not dictionaries, so we overwrite the destination from
+        # the source
+        dest[key] = val
+
 def applyPersistance():
     """
     Updates conf from any persisted values in PERSISTED.
     """
-    #pylint: disable=invalid-name,eval-used
     try:
-        with open(PERSISTED, 'r') as f:
-            for l in f.readlines():
-                #print("Line: %s" % l)
-                # Does it look like something we can use?
-                parts = l.rstrip().split(': ')
-                if len(parts) == 2:
-                    #print("Its configable...")
-                    updateConf(parts[0], eval(parts[1].strip()), autotype=False, persist=False)
+        with open(PERSISTED, 'r') as in_file:
+            p_conf = ujson.load(in_file)
+            updateDict(p_conf, conf)
     except OSError:
         # Probably no file, so we skip
         pass

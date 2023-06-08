@@ -24,7 +24,14 @@
                     <table>
                         <thead>
                             <tr>
-                                <th colspan=4>Servo Control</th>
+                                <th colspan=4>
+                                    Servo Control
+                                    <span
+                                        class="material-icons save"
+                                        onclick="hexapod.saveParams();"
+                                    >
+                                        save
+                                </th>
                             </tr>
                             <tr>
                                 <th></th>
@@ -37,25 +44,38 @@
                             <tr class="trim">
                                 <th>Trim</th>
                                 <td>
-                                    <input type="number" name="left.trim" min=-10 max=10 step=1>°
+                                    <input type="number" name="left" min=-10 max=10 step=1>°
                                 </td>
                                 <td>
-                                    <input type="number" name="mid.trim" min=-10 max=10 step=1>°
+                                    <input type="number" name="mid" min=-10 max=10 step=1>°
                                 </td>
                                 <td>
-                                    <input type="number" name="right.trim" min=-10 max=10 step=1>°
+                                    <input type="number" name="right" min=-10 max=10 step=1>°
                                 </td>
                             </tr>
-                            <tr class="phase">
+                            <tr class="phase_shift">
                                 <th>Phase</th>
                                 <td>
-                                    <input type="number" name="left.phase" min=0 max=180 step=45>°
+                                    <input type="number" name="left" min=0 max=180 step=45>°
                                 </td>
                                 <td>
-                                    <input type="number" name="mid.phase" min=0 max=180 step=45>°
+                                    <input type="number" name="mid" min=0 max=180 step=45>°
                                 </td>
                                 <td>
-                                    <input type="number" name="right.phase" min=0 max=180 step=45>°
+                                    <input type="number" name="right" min=0 max=180 step=45>°
+                                </td>
+                            </tr>
+                            <tr class="amplitude">
+                                <th>Amplitude</th>
+                                <td>
+                                    <input type="number" name="left" min=5 max=130 step=5>°
+                                </td>
+                                <td>
+                                    <input type="number" name="mid" min=2 max=20 step=1>°
+                                </td>
+                                <td>
+                                    <input type="number" name="right" min=5
+                                    max=130 step=5>°
                                 </td>
                             </tr>
                             <tr class="speed">
@@ -67,13 +87,56 @@
                                     </div>
                                 </td>
                             </tr>
-                            <tr class="playpause">
-                                <td colspan=4 class="playpause">
+                            <tr class="stroke">
+                                <th>Stroke</th>
+                                <td colspan=3>
+                                    <div class="range-wrap">
+                                        <input type="range" class="range" name="stroke" min=0 max=60>
+                                        <output class="bubble"></output>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr class="steering">
+                                <td colspan=4>
                                     <span
-                                        class="material-icons"
+                                        class="material-icons left"
+                                        onclick="hexapod.steer('left');"
+                                    >
+                                        arrow_left
+                                    </span>
+                                    <span
+                                        class="material-icons fwd"
+                                        onclick="hexapod.steer('fwd');"
+                                    >
+                                        arrow_drop_up
+                                    </span>
+                                    <span
+                                        class="material-icons rev"
+                                        onclick="hexapod.steer('rev');"
+                                    >
+                                        arrow_drop_down
+                                    </span>
+                                    <span
+                                        class="material-icons right"
+                                        onclick="hexapod.steer('right');"
+                                    >
+                                        arrow_right
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr class="controls">
+                                <td colspan=4>
+                                    <span
+                                        class="material-icons playpause"
                                         onclick="pauseToggle(event);"
                                     >
                                         pause_circle
+                                    </span>
+                                    <span
+                                        class="material-icons centerservos"
+                                        onclick="hexapod.centerServos();"
+                                    >
+                                        vertical_align_center
                                     </span>
                                 </td>
                             </tr>

@@ -1,124 +1,24 @@
 """
 Web interface.
 """
-import gc
-import uos
-import uasyncio
+from webserver import gc, app, logging, runserver
 
-from microdot_asyncio import Microdot, Response, send_file
-import ulogging as logging
+#pylint: disable=broad-except
 
-from config import conf, updateConf, getByDotKey
-
-# This is used to look up a content type from a file extension for the static
-# file server.
-MIME_TYPES = {
-        'html': 'text/html; charset=UTF-8',
-        'css': 'text/css; charset=UTF-8',
-        'js': 'application/javascript',
-}
-
-# This is the subset of the main config file that we allow to be managed via
-# the web API
-conf_subset = {
-    'valve.ppl': ['Pulses/L', getByDotKey('valve.ppl')],
-    'valve.max_flow_period': ['Max Flow Secs', getByDotKey('valve.max_flow_period')],
-    'valve.max_flow_delay': ['Off Delay Secs', getByDotKey('valve.max_flow_delay')],
-    'valve.max_flow_warn': ['Warn At Secs', getByDotKey('valve.max_flow_warn')],
-    #'sensor_id': ['Sensor ID', getByDotKey('sensor_id')],
-    'mqtt.enabled': ['MQTT Enabled', getByDotKey('mqtt.enabled')],
-    'mqtt.host': ['MQTT Host', getByDotKey('mqtt.host')],
-    'ota_url': ['OTA URL', getByDotKey('ota_url')],
-}
-
-
-# The main web app. On main app startup in main.py, after the hexapod instance has been
-# created, and this web app has been imported, the hexapod instance will be
-# added to the web app on the hexapod attribute.
-# This will allow the web app to get access to the hexapod via the attribute:
-# `request.app.hexapod` in all request handlers.
-app = Microdot()
-
-async def reboot(wait=2, hard=False):
+@app.before_request
+async def request_hook(request):
     """
-    Coro that can be called to perform a reboot after `wait` seconds.
+    Hook that is called before every request.
 
-    This is helpful where the reboot is initiated from a web interface or
-    some other external trigger, but feedback needs to be given first before
-    initiating the reboot.
-
-    Args:
-        wait (int): Seconds to wait before rebooting
-        hard (bool): If true, then a machine.reset() is performed which is
-            equivalent to pressing the reset button. If False, a soft reboot is
-            performed by simply exiting the main process which will cause a
-            Python reset by reloading from boot.py again.
-            The hard reset is helpful if WiFi needs to be reset too, for
-            example.
+    This is helpful to log the request details for all requests.
     """
-    #pylint: disable=import-outside-toplevel
-
-    logging.info("Going to reboot in %s secs...", wait)
-
-    await uasyncio.sleep(wait)
-
-    # Hard reboot?
-    if hard:
-        import machine
-        machine.reset()
-
-    # This is a soft reboot
-    import sys
-    sys.exit()
-
-def staticFile(path, content_type=None, gzipped=True):
-    """
-    General function returning static files and ensuring the content type is
-    set correctly.
-
-    All static files are also expected to be gzipped, so we force the
-    Content-Encoding header to gzip here.
-
-    Args:
-        path (str): full path to the static file. The content type will be set
-            based on the file name extension, so make sure the static files
-            have and extension that can be used to derive the content type.
-        content_type (str): The `Content-Type` header to use in the response.
-            If omitted, it is generated automatically from the file extension.
-        gzipped (bool): If the file being sent is gzipped set this to True to set
-            the `Content-Encoding` header to gzip. This is the default since
-            all static files are gzipped, although the file name does not have
-            .gz or similar extension.
-            For files that are not gzipped, set this to False.
-
-    Returns:
-        A Response object ready to be returned to the web server.
-    """
-    gc.collect()
-    # Call Microdot's send_file to create the Response object for the file.
-    stat_f = send_file(path, content_type=content_type)
-    if gzipped:
-        stat_f.headers['Content-Encoding'] = 'gzip'
-    return stat_f
-
-@app.route('/')
-async def index(request):
-    """
-    Web interface main entry point. We simply serve the index.html from here.
-    """
-    # pylint: disable=unused-argument
-    gc.collect()
-    logging.debug("Web request: index")
-    return staticFile('static/index.html')
-
-@app.route('/static/<stat_file>')
-async def static(request, stat_file):
-    """
-    Static files handler
-    """
-    # pylint: disable=unused-argument
-    logging.debug("Web request: static file: %s", stat_file)
-    return staticFile(f'static/{stat_file}')
+    logging.info(
+        "HTTP: %s %s, Args: %s, JSON: %s",
+        request.method,
+        request.path,
+        request.args,
+        request.json
+    )
 
 @app.route('/get_params')
 async def getParams(request):
@@ -150,8 +50,118 @@ async def getParams(request):
         "speed": (float),   # Period as a % of min and max periods
     }
     """
-    return request.app.hexapod.getParams()
+    gc.collect()
+    return request.app.hexapod.params
 
+@app.route('/pause', methods=["GET", "POST"])
+async def pause(request):
+    """
+    Gets or sets the pause state.
+
+    GET:
+        Returns the current pause state as:
+            {"paused": bool}
+
+    POST:
+        Set the pause state with this data structure:
+            {"paused": bool} - true to pause, false to unpause
+    """
+    gc.collect()
+    if request.method == "GET":
+        return {"paused": request.app.hexapod.pause}
+
+    # Must be a POST
+    if not "paused" in request.json:
+        return {"errors": ["Requires 'paused' key and bool state to set pause state."]}
+
+    request.app.hexapod.pause = request.json['paused']
+
+    return {"errors": []}
+
+@app.route('/trim', methods=["GET", "POST"])
+async def trim(request):
+    """
+    Gets or sets the servo trim values.
+
+    GET:
+        Returns the current trim values as:
+            [left trim, mid trim, right trim]
+
+    POST request data:
+        A list with the trim values for the servos:
+            [left trim, mid trim, right trim]
+        Any of the 3 trim values can be None (null) to not set the trim for
+        that servo.
+        Optionally, this could also be a JSON object with a 'trim' keyword and
+        value the list of trim settings:
+            {"trim": [left trim, mid trim, right trim]}
+
+    POST response:
+        If no errors, returns the same as for the GET request.
+        If any errors, returns:
+            {"errors": [error message(s)]}
+    """
+    gc.collect()
+    if request.method == "GET":
+        return request.app.hexapod.trim
+
+    # Must be a POST, body could be a list or dict
+    trim_list = request.json
+    # If it's a dict, we expect the 'trim' key, from which we will the ntake
+    # the value which is expected to the trim list.
+    if isinstance(trim_list, dict):
+        if not "trim" in trim_list:
+            return {"errors": ["No 'trim' key in parameters."]}
+        trim_list = trim_list['trim']
+
+    if not isinstance(trim_list, list) or len(trim_list) != 3:
+        return {"errors": ["Expect a list of three trim values."]}
+
+    request.app.hexapod.trim = trim_list
+
+    return request.app.hexapod.trim
+
+@app.route('/center_servos', methods=["POST"])
+async def centerServos(request):
+    """
+    Sets all servos to the center position (90°), with or without the current
+    trim settings.
+
+    NOTE: This will force the paused state if not already paused.
+
+    POST request data:
+        "with_trim": boolean
+
+    The post data is optional and if not supplied, "with_trim" will default to
+    True, meaning that the current trim settings will be taken into account
+    when centering the servos.
+
+    POST response:
+        {errors": [One or more error strings if error]}
+    """
+    gc.collect()
+    resp = {"errors": []}
+    try:
+        with_trim = request.json.get("with_trim", True) if request.json else True
+        request.app.hexapod.centerServos(with_trim)
+    except Exception as exc:
+        resp["errors"] = [f"Application error: {exc}"]
+
+    return resp
+
+@app.route('/mem')
+async def memInfo(_):
+    """
+    Returns the current memory status.
+
+    GET:
+        Returns:
+            {"alloc": int, "free": int}
+    """
+    gc.collect()
+    return {"alloc": gc.mem_alloc(), "free": gc.mem_free()}
+
+#### REVIEW and DELETE ###########
 @app.route('/set_params', methods=["POST"])
 async def setParams(request):
     """
@@ -191,8 +201,10 @@ async def setParams(request):
         "paused": (bool),
         "period": (int),
         "speed": (float),   # Period as a % of min and max periods
+        "stroke" (int),     # Amplitude for the leg servos
     }
     """
+    gc.collect()
     #pylint: disable=too-many-branches
     errs = []
     for key, val in request.json.items():
@@ -226,56 +238,42 @@ async def setParams(request):
                     setattr(hpod.servos[servo], pkey, pval)
             continue
 
+        if key == "stroke":
+            request.app.hexapod.stroke = val
+            continue
+
         errs.append(f"Invalid param to set: {key}")
 
     return {"errors": errs}
 
-@app.route('/center')
-async def centerServos(request):
+@app.route('/save_params')
+async def saveParams(request):
     """
-    Sets all servos to the center position (90°)
+    Saves the current hexapod config parameters to persistent storage.
+
+    GET Response:
+        Same as for getParams call.
     """
-    request.app.hexapod.centerServos()
-    return {"errors": []}
+    gc.collect()
+    return request.app.hexapod.saveParams()
 
-@app.route('/pause', methods=["GET", "POST"])
-async def pause(request):
+@app.route('/steer', methods=["POST"])
+async def steer(request):
     """
-    Gets or sets the pause state.
+    Endpoint to steer the hexapod.
 
-    GET:
-        Returns the current pause state as:
-            {"paused": bool}
+    Both arguments are optional, but if neither is supplied, or both are None,
+    and error will be returned.
 
-    POST:
-        Set the pause state with this data structure:
-            {"paused": bool} - true to pause, false to unpause
+    POST JSON data:
+    {
+        "direct": Optional, one of 'fwd', 'rev', 'left' or 'right'
+        "angle": Optional, an integer from -180 to 180
+    }
     """
-    if request.method == "GET":
-        return {"paused": request.app.hexapod.pause}
+    gc.collect()
+    dat = request.json
+    logging.info("Steering params: %s", dat)
 
-    # Must be a POST
-    if not "paused" in request.json:
-        return {"errors": ["Requires 'paused' key and bool state to set pause state."]}
+    return request.app.hexapod.steer(dat.get('direct'), dat.get('angle'))
 
-    request.app.hexapod.pause = request.json['paused']
-
-    return {"errors": []}
-
-@app.route('/mem')
-async def memInfo(_):
-    """
-    Returns the current memory status.
-
-    GET:
-        Returns:
-            {"alloc": int, "free": int}
-    """
-    return {"alloc": gc.mem_alloc(), "free": gc.mem_free()}
-
-async def runserver(host='0.0.0.0', port=80, debug=True):
-    """
-    Start the webserver.
-    """
-    logging.info("Starting web server on %s:%s", host, port)
-    await app.start_server(host=host, port=port, debug=debug)

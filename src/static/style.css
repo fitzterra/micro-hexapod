@@ -49,25 +49,8 @@ div.nav span {
 div.nav span:hover {
     color: #379237;
 }
-
-div.nav span.refresh {
-    position: absolute;
-    right: 0px;
-}
 /*>>> END: Navigation block <<<*/
 
-/*<<< Error message blinker >>>*/
-.err_blinker {
-    color: #a22;
-    animation: blinker 1s linear infinite;
-}
-
-@keyframes blinker {
-  50% {
-    opacity: 0;
-  }
-}
-/*>>> END: Error message blinker <<<*/
 
 /*>>> Range sliders styling. <<<*/
 .range-wrap {
@@ -148,22 +131,78 @@ div.sect.control table td {
     font-size: smaller;
 }
 
+/* Float the save button right */
+div.sect.control table span.save < tr {
+    position: absolute;
+}
+div.sect.control table span.save {
+    position: absolute;
+    right: 0%;
+    background: #101010;
+    border-radius: 25%;
+    padding: 0.5ex;
+    cursor: pointer;
+}
+
+
 /* Number Input fields */
 div.sect.control table input[type=number] {
-    width: 2em;
+    width: 2.5em;
     height: 1em;
     font-size: smaller;
 }
-div.sect.control table tr.phase input[type=number] {
-    width: 2.5em;
+/* Trim is slightly less wide */
+div.sect.control table tr.trim input[type=number] {
+    width: 2em;
 }
 
-/* Pause/Play control table row and span button */
-div.sect.control table td.playpause {
-    padding-top: 1em;
+/* Steering table row and span button */
+div.sect.control table tr.steering td {
+    padding-top: 0.5em;
 }
-div.sect.control table td.playpause span {
-    font-size: larger;
+/* All buttons are in span elements, and they all look the same */
+div.sect.control table tr.steering span {
+    background: #101010;
+    border-radius: 1ex;
+    cursor: pointer;
+    font-size: 1ex;
+    position: relative;
+}
+div.sect.control table tr.steering span.left {
+    right: -1.5ex;
+}
+div.sect.control table tr.steering span.fwd {
+    right: -1ex;
+    top: -2ex;
+}
+div.sect.control table tr.steering span.rev {
+    left: -2ex;
+    bottom: -2ex;
+}
+div.sect.control table tr.steering span.right {
+    left: -2.5ex;
+}
+/* Controls table row and span button */
+div.sect.control table tr.controls td {
+    /*padding-top: 1em;*/
+}
+/* All buttons are in span elements, and they all look the same */
+div.sect.control table tr.controls span {
+    font-size: 110%;
+    background: #101010;
+    padding: 0.2ex 1ex;
+    border-radius: 1.2ex;
+    cursor: pointer;
+    margin: 1ex 0px;
+}
+/* Can't find a horizontal align icon for the center servos button, so need to
+ * rotate a vertical one. This means we need to also rotate all padding, etc.
+ */
+div.sect.control table tr.controls span.centerservos {
+    transform: rotate(90deg);
+    padding: 1ex 0.2ex;
+    border-radius: 1.2ex;
+    margin: 0px 1ex;
 }
 /*<<< END: Control section >>>*/
 

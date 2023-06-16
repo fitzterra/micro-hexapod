@@ -7,8 +7,6 @@ from bottle import (
     route, get, post, run, request, static_file
 )
 
-from map_to import mapTo
-
 
 # Simulate: from version import VERSION
 VERSION = '1.2.3'
@@ -21,12 +19,30 @@ class Sim:
 
     PERIOD_MAX = 3000
     PERIOD_MIN = 500
+    # This is min and max degrees the left and right servos may move per
+    # oscillation cycle.
+    # The min and max in theory is 0° - 180°, but the legs may be restricted due
+    # to the design and not allow a full 90° movement.
+    # Test this directly setting servo angles and see how far they can go in
+    # either direction without touching the body.
+    # NOTE: Best is to keep these symmetrical, i.e. :
+    #   STROKE_MAX_ANGL == 180-STROKE_MIN_ANGL
+    # or vice versa depending to which side the restriction is greatest.
+    STROKE_MIN_ANGL = 35
+    STROKE_MAX_ANGL = 145
+    # This is the calculated max stroke for the left and right servos based on
+    # the max stroke angles. The difference between min and max is the total
+    # stroke angle available, but this angle is split around the 90° rotation
+    # point, so only half of this will be available as the final amplitude
+    # for the left/right servos
+    STROKE_MAX = (STROKE_MAX_ANGL - STROKE_MIN_ANGL) // 2
 
     def __init__(self):
         """
         Class init.
         """
         self._period = 2000
+        self._stroke = 30
         self._paused = True
         self.servos = {
             "left": {
@@ -45,6 +61,67 @@ class Sim:
                 "trim": 0,
             },
         }
+        self._steer_dir = 'fwd'
+        self._steer_angle = 0
+
+    @property
+    def steer(self):
+        """
+        Gets current steering settings.
+
+        Returns:
+            The steering direction and angle:
+            {
+                'dir': one of 'fwd', 'rev', 'rot'r, 'rotl'
+                'angle': current angle off the direction
+            }
+
+        """
+        return {
+            'dir': self._steer_dir,
+            'angle': self._steer_angle
+        }
+
+    @steer.setter
+    def steer(self, steer_val):
+        """
+        Changes steering settings.
+
+        Args:
+            steer_val (dict): The steering direction and/or angle:
+                {
+                    'dir': one of 'fwd', 'rev', 'rotr', 'rotl'
+                    'angle': current angle off the direction
+                }
+                Either 'dir' or 'angle` can be omitted. Angle is optional at
+                all times. If it is given, and the current dir is not 'fwd' or
+                'rev', an error would be raised. IOW angel can only be
+                specified for forward or reverse direction.
+
+        Raises:
+            ValueError with error message if direct param is invalid.
+        """
+        direct = steer_val.get('dir', None)
+        angle = steer_val.get('angle', None)
+        if direct is not None:
+            if direct in ['fwd', 'rev', 'rotr', 'rotl']:
+                self._steer_dir = direct
+                # When getting any of these directional commands, we also
+                # immediately reset the steering angle.
+                self._steer_angle = 0
+            else:
+                raise ValueError(f"Invalid steering direction: {direct}")
+
+        if angle is not None:
+            if self._steer_dir not in ['fwd', 'rev']:
+                raise ValueError(
+                    "An angle can only be given when in 'fwd or "\
+                    "'rev' direction"
+                )
+            if isinstance(angle, int) and (-90 <= angle <= 90):
+                self._steer_angle = angle
+            else:
+                raise ValueError(f"Invalid steering angle: {angle}")
 
     @property
     def speed(self):
@@ -55,15 +132,17 @@ class Sim:
         min and max allowed period.
 
         Returns:
-            The speed percentage as a float
+            The speed percentage as an int
         """
-        return round(
-            mapTo(self._period, self.PERIOD_MIN, self.PERIOD_MAX, 100, 0),
-            2
-        )
+        # Calculate the "slowness" percentage for the current period out of the
+        # max period allowed
+        slowness = (self._period -self.PERIOD_MIN) * 100 // (self.PERIOD_MAX - self.PERIOD_MIN)
+        # Return the inverted slowness to give the speed as a measure of
+        # fastness
+        return 100 - slowness
 
     @speed.setter
-    def speed(self, speed):
+    def speed(self, val):
         """
         Speed property setter.
 
@@ -81,16 +160,55 @@ class Sim:
         Raises:
             ValueError if the speed value is invalid.
         """
-        if not 0 <= speed <= 100:
-            raise ValueError(f"Invalid speed percentage: {speed}. 0 - 100")
+        if not (isinstance(val, int) and (0 <= val <= 100)):
+            raise ValueError(f"Invalid speed percentage value: {val}")
 
-        period = int(
-            round(
-                mapTo(speed, 0, 100, self.PERIOD_MAX, self.PERIOD_MIN),
-                0
-            )
-        )
-        self._period = period
+        # The speed is inversely proportional to period, so we need to first
+        # get the "slowness" (inverse of the "fastness" which speed represents)
+        # percentage before we can calculate the period.
+        slowness = 100 - val
+
+        # Now we can calculate what percentage this slowness will be of the
+        # total allowed period, before offsetting it with the min period
+        self._period = (
+            slowness * (self.PERIOD_MAX - self.PERIOD_MIN) // 100
+        ) + self.PERIOD_MIN
+
+    @property
+    def stroke(self):
+        """
+        Gets current stroke as a percentage of the self._stroke of
+        self.STROKE_MAX.
+
+        The stroke translates to the amplitude at which the left and right legs
+        oscillate. The larger the stroke, further the legs move per cycle.
+
+        In order to make setting this easier, we use a percentage of the max
+        stroke value, as defined by STROKE_MIN_ANGL and STROKE_MAX_ANGL.
+
+        Returns:
+            The current stroke percentage as an integer
+        """
+        # Return the stoke percentage
+        return self._stroke * 100 // self.STROKE_MAX
+
+    @stroke.setter
+    def stroke(self, val):
+        """
+        Sets the stroke as a percentage of STROKE_MAX.
+
+        Args:
+            val (int): A percentage between 0 and 100 used to calculate the
+                final stroke value from STROKE_MAX.
+
+        Raises:
+            ValueError with error message if val param is invalid.
+        """
+        if not (isinstance(val, int) and (0 <= val <= 100)):
+            raise ValueError(f"Invalid stroke percentage value: {val}")
+
+        # Calculate the new stroke value
+        self._stroke = val * self.STROKE_MAX // 100
 
     def getParams(self):
         """
@@ -147,17 +265,6 @@ class Sim:
         """
         return self.getParams()
 
-    def steer(self, direct=None, angle=None):
-        """
-        Simulates the steer call.
-        """
-        print(f"Steering: direct={direct}, angle={angle}")
-
-        return {
-            'success': True,
-            'errors': None,
-        }
-
 
 sim = Sim()
 
@@ -178,91 +285,162 @@ def index():
     """
     return static_file('index.html', root='./static')
 
-@route('/get_params')
-def getParams():
+@route('/pause', method=["POST"])
+def pause():
     """
-    Returns the current hexapod parameters.
+    Pauses the hexapod if it is currently running
+
+    POST:
+        An empty body
     """
-    return sim.getParams()
+    return None
 
-@route('/set_params', method='POST')
-def setParams():
+@route('/run', method=["POST"])
+def runServos():
     """
-    Called to set hexapod runtime parameters
+    Starts or unpauses the hexapod if it was paused.
+
+    POST:
+        An empty body
     """
-    # Get the json data
-    dat = request.json
-    errs = []
-    # Cycle though the post data an update the parameters
-    for key, val in dat.items():
-        if key == "speed":
-            print(f"Updating speed to {val}%")
-            sim.speed = val
-            continue
+    return None
 
-        # We do not set both speed and period if both are present. We favor
-        # speed and do not set period if speed is provided. To set period, do
-        # not not also provide the speed.
-        if key == "period":
-            if "speed" in dat:
-                print("Ignoring period update since speed is also provided.")
-            else:
-                print(f"Updating period to {val}")
-                sim._period = val
-            continue
-
-        if key == "paused":
-            print(f"Updating paused to {val}")
-            sim._paused = val
-            continue
-
-        if key == "servo":
-            for servo, params in val.items():
-                if not servo in sim.servos:
-                    errs.append(f"No servo named: {servo}")
-                    continue
-                for pkey, pval in params.items():
-                    if not pkey in ['amplitude', 'phase_shift', 'trim']:
-                        errs.append(f"Invalid param for servo {servo}: {pkey}")
-                        continue
-                    print(f"Updating servos['{servo}']['{pkey}'] to {pval}")
-                    sim.servos[servo][pkey] = pval
-            continue
-
-
-        err = f"Unhandled parameter: {key}"
-        print(err)
-        errs.append(err)
-
-    res = {
-        'success': True,
-        'errors': None,
-    }
-
-    return res
-
-@route('/center_servos', method='GET')
-def centerServos():
-    """
-    Called to center all servos.
-    """
-    return sim.centerServos()
-
-@route('/save_params', method='GET')
-def saveParams():
-    """
-    Called to save the current parameters to persistent storage.
-    Returns the params that have been saved.
-    """
-    return sim.saveParams()
-
-@route('/steer', method='POST')
+@route('/steer', method=["GET", "POST"])
 def steer():
     """
-    Called to steer the hexapod
-    """
-    dat = request.json
-    return sim.steer(direct=dat.get('direct'), angle=dat.get('angle'))
+    Gets or sets the steering direction.
 
+    GET:
+        Returns the current steering values as:
+            {
+                'dir': one of 'fwd', 'rev', 'rotr', 'rotl'
+                'angle': current angle off the direction
+            }
+
+    POST request data:
+        {
+            'dir': 'fwd', 'rev', 'rotr', 'rotl'
+            'angle': angle off the 'fwd' or 'rev' direction
+        }
+
+        Both `dir` and `angle` are optional. Angle will be ignored if the
+        current direction is not 'fwd' or 'rev'.
+
+    POST response:
+        If no errors, returns the same as for the GET request.
+        If any errors, returns:
+            {"errors": [error message(s)]}
+    """
+    if request.method == "GET":
+        return sim.steer
+
+    # Must be a POST, body could be a list or dict
+    params = request.json
+    if not ('dir' in params or 'angle' in params):
+        return {"errors": ["At least one of 'dir' or 'angle' keys required."]}
+
+    try:
+        sim.steer = params
+    except Exception as exc:
+        return {"errors": [str(exc)]}
+
+    return sim.steer
+
+@route('/speed', method=["GET", "POST"])
+def speed():
+    """
+    Gets or sets the oscillation speed, or period.
+
+    GET:
+        Returns the current speed value as a percentage of the total allowed
+        period:
+        {"speed": speed percentage as integer (0 - 100)"
+
+    POST request data:
+        {"speed": speed percentage as integer (0 - 100)"
+
+    POST response:
+        If no errors, returns the same as for the GET request. Note that the
+        speed percentage returned could be slightly different to the value used
+        to set it. This is due to rounding errors when sticking to integer
+        percentages.
+        If any errors, returns:
+            {"errors": [error message(s)]}
+    """
+    if request.method == "GET":
+        return {"speed": sim.speed}
+
+    # Must be a POST, body could be a list or dict
+    dat = request.json
+    # We expect the 'speed' key, from which we will then take
+    # the actual speed value
+    if isinstance(dat, dict):
+        if not "speed" in dat:
+            return {"errors": ["No 'speed' key in parameters."]}
+
+    dat = dat["speed"]
+
+    # Allow it to be passed in as a string
+    if isinstance(dat, str):
+        try:
+            dat = int(dat)
+        except ValueError as exc:
+            return {"errors": [str(exc)]}
+
+    try:
+        sim.speed = dat
+    except Exception as exc:
+        return {"errors": [str(exc)]}
+
+    return {"speed": sim.speed}
+
+@route('/stroke', method=["GET", "POST"])
+def stroke():
+    """
+    Gets or sets the oscillation amplitude for the left and right legs as a
+    a percentage of the max stroke defined for them.
+
+    GET:
+        Returns the current stroke value as a percentage of the maximum allowed
+        stroke or amplitude setting for the left/right legs:
+        {"stroke": stroke percentage as integer (0 - 100)"
+
+    POST request data:
+        {"stroke": stroke percentage as integer (0 - 100)"
+
+    POST response:
+        If no errors, returns the same as for the GET request. Note that the
+        stroke percentage returned could be slightly different to the value used
+        to set it. This is due to rounding errors when sticking to integer
+        percentages.
+        If any errors, returns:
+            {"errors": [error message(s)]}
+    """
+    if request.method == "GET":
+        return {"stroke": sim.stroke}
+
+    # Must be a POST, body could be a list or dict
+    dat = request.json
+    # We expect the 'stroke' key, from which we will then take
+    # the actual stroke value
+    if isinstance(dat, dict):
+        if not "stroke" in dat:
+            return {"errors": ["No 'stroke' key in parameters."]}
+
+    dat = dat["stroke"]
+
+    # Allow it to be passed in as a string
+    if isinstance(dat, str):
+        try:
+            dat = int(dat)
+        except ValueError as exc:
+            return {"errors": [str(exc)]}
+
+    try:
+        sim.stroke = dat
+    except Exception as exc:
+        return {"errors": [str(exc)]}
+
+    return {"stroke": sim.stroke}
 
 run(host='0.0.0.0', port=5000, reloader=True, debug=True)

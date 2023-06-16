@@ -186,7 +186,7 @@ async def steer(request):
     try:
         request.app.hexapod.steer = params
     except Exception as exc:
-        return {"errors": [exc]}
+        return {"errors": [str(exc)]}
 
     return request.app.hexapod.steer
 
@@ -223,10 +223,19 @@ async def speed(request):
         if not "speed" in dat:
             return {"errors": ["No 'speed' key in parameters."]}
 
+    dat = dat["speed"]
+
+    # Allow it to be passed in as a string
+    if isinstance(dat, str):
+        try:
+            dat = int(dat)
+        except ValueError as exc:
+            return {"errors": [str(exc)]}
+
     try:
-        request.app.hexapod.speed = dat['speed']
+        request.app.hexapod.speed = dat
     except Exception as exc:
-        return {"errors": [exc]}
+        return {"errors": [str(exc)]}
 
     return {"speed": request.app.hexapod.speed}
 

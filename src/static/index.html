@@ -13,136 +13,59 @@
         <div class="viewport">
             <p class="sitehead">Micro Hexapod</p>
 
+            <div class="nav">
+                <span class="material-icons" data-func="settings" onclick="navChange(event);">settings_application</span>
+                <span class="material-icons" data-func="control" onclick="navChange(event);">videogame_asset</span>
+            </div>
+
+            <div class="sect settings">
+                <p>Settings</p>
+            </div>
+
             <div class="sect control">
-
-                <div class="nav">
-                    <span class="material-icons" onclick="navChange(event, 'control');">videogame_asset</span>
-                </div>
-
-                <div class="servo">
-                    <div class="overlay"></div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th colspan=4>
-                                    Servo Control
-                                    <span
-                                        class="material-icons save"
-                                        onclick="hexapod.saveParams();"
-                                    >
-                                        save
-                                </th>
-                            </tr>
-                            <tr>
-                                <th></th>
-                                <th>Left</th>
-                                <th>Mid</th>
-                                <th>Right</th> 
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="trim">
-                                <th>Trim</th>
-                                <td>
-                                    <input type="number" name="left" min=-10 max=10 step=1>°
-                                </td>
-                                <td>
-                                    <input type="number" name="mid" min=-10 max=10 step=1>°
-                                </td>
-                                <td>
-                                    <input type="number" name="right" min=-10 max=10 step=1>°
-                                </td>
-                            </tr>
-                            <tr class="phase_shift">
-                                <th>Phase</th>
-                                <td>
-                                    <input type="number" name="left" min=0 max=180 step=45>°
-                                </td>
-                                <td>
-                                    <input type="number" name="mid" min=0 max=180 step=45>°
-                                </td>
-                                <td>
-                                    <input type="number" name="right" min=0 max=180 step=45>°
-                                </td>
-                            </tr>
-                            <tr class="amplitude">
-                                <th>Amplitude</th>
-                                <td>
-                                    <input type="number" name="left" min=5 max=130 step=5>°
-                                </td>
-                                <td>
-                                    <input type="number" name="mid" min=2 max=20 step=1>°
-                                </td>
-                                <td>
-                                    <input type="number" name="right" min=5
-                                    max=130 step=5>°
-                                </td>
-                            </tr>
-                            <tr class="speed">
-                                <th>Speed</th>
-                                <td colspan=3>
-                                    <div class="range-wrap">
-                                        <input type="range" class="range" name="speed">
-                                        <output class="bubble"></output>
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr class="stroke">
-                                <th>Stroke</th>
-                                <td colspan=3>
-                                    <div class="range-wrap">
-                                        <input type="range" class="range" name="stroke" min=0 max=60>
-                                        <output class="bubble"></output>
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr class="steering">
-                                <td colspan=4>
-                                    <span
-                                        class="material-icons left"
-                                        onclick="hexapod.steer('left');"
-                                    >
-                                        arrow_left
-                                    </span>
-                                    <span
-                                        class="material-icons fwd"
-                                        onclick="hexapod.steer('fwd');"
-                                    >
-                                        arrow_drop_up
-                                    </span>
-                                    <span
-                                        class="material-icons rev"
-                                        onclick="hexapod.steer('rev');"
-                                    >
-                                        arrow_drop_down
-                                    </span>
-                                    <span
-                                        class="material-icons right"
-                                        onclick="hexapod.steer('right');"
-                                    >
-                                        arrow_right
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr class="controls">
-                                <td colspan=4>
-                                    <span
-                                        class="material-icons playpause"
-                                        onclick="pauseToggle(event);"
-                                    >
-                                        pause_circle
-                                    </span>
-                                    <span
-                                        class="material-icons centerservos"
-                                        onclick="hexapod.centerServos();"
-                                    >
-                                        vertical_align_center
-                                    </span>
-                                </td>
-                            </tr>
-
-                        </tbody>
-                    </table>
+                <div class="steer">
+                    <div class="fwd grid-item material-icons"
+                         onclick="steerEvent(event, 'fwd')">
+                        arrow_circle_up
+                    </div>
+                    <div class="rotr grid-item material-icons"
+                        style="transform: rotateY(180deg)"
+                        onclick="steerEvent(event, 'rotr')">
+                        settings_backup_restore
+                    </div>
+                    <div class="rev grid-item material-icons"
+                        onclick="steerEvent(event, 'rev')">
+                        arrow_circle_down
+                    </div>
+                    <div class="rotl grid-item material-icons"
+                        onclick="steerEvent(event, 'rotl')">
+                        settings_backup_restore
+                    </div>
+                    <div class="run grid-item material-icons"
+                        onclick="playPauseEvent(event)">
+                        play_circle
+                    </div>
+                    <div class="spd grid-item vslider">
+                        <div class="label">Speed</div>
+                        <input type="range" name="speed" min=0 max=100
+                                            orient="vertical" data-unit='%'
+                                            data-endpoint='speed'>
+                        <div class="val">0%</div>
+                    </div>
+                    <div class="strk grid-item vslider">
+                        <div class="label">Stroke</div>
+                        <input type="range" name="stroke" min=0 max=100
+                                            orient="vertical" data-unit='%'
+                                            data-endpoint='stroke'>
+                        <div class="val">0%</div>
+                    </div>
+                    <div class="angle grid-item hslider">
+                        <div class="label">Steer Angle</div>
+                        <!-- The angle is set via the /steer' endpoint -->
+                        <input type="range" name="angle" min=-90 max=90
+                                            data-unit='°' data-endpoint='steer'>
+                        <div class="val">0°</div>
+                    </div>
                 </div>
 
             </div>

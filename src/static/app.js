@@ -2,225 +2,8 @@
  * Micro Hexapod control web interface app.
  */
 
-//
-base_url = 'http://192.168.1.201'
-
-// Will be initialized in main()
-let hexapod = null;
-
-/**
- * A Hexapod object containing all properties and methods to control the
- * hexapod over the REST API.
- **/
-class Hexapod {
-    // The current hexapod params as received from a call to /get_params. Will
-    // be updated on instantiation, and also from local input.
-    params = null;
-
-    /**
-     * The instance constructor method.
-     *
-     * It only calls the fetchParams method;
-     * state is paused.
-     **/
-    constructor() {
-        this.fetchParams()
-
-    }
-
-    /**
-     * Fetches the current hexapod parameters and saves it localy and updates
-     * the view
-     **/
-    fetchParams() {
-        // Make the call
-        ajax({'url': `${base_url}/get_params`}).then(
-            (req) => {
-                this.params = req.responseJSON;
-            }
-        ).then(
-            function() {
-                updateParamsView();
-            }
-        );
-    }
-
-    /**
-     * Sets the hexapod parameters to what is in this.params.
-     *
-     * This is normally called after updating one of the params from local
-     * input to update the same on the backend.
-     **/
-    setParams(callback=null) {
-        // Set the ajax options
-        let opts = {
-            'url': `${base_url}/set_params`,
-            'method': 'POST',
-            'contentType': 'application/json',
-            'data': JSON.stringify(this.params),
-        };
-
-        // Make the call
-        ajax(opts).then(
-            (req) => {
-                let resp = req.responseJSON;
-                if (! resp.success) {
-                    console.log("Error setting parameter:", resp.errors);
-                }
-            }
-        ).then(
-            () => {
-                if (callback!==null) {
-                    callback();
-                }
-            }
-        );
-    }
-
-    /**
-     * Sets the hexapod speed.
-     *
-     * This method will set set the speed param and then call setParams.
-     **/
-    speed(spd) {
-        this.params.speed = spd;
-
-        this.setParams();
-    }
-
-    /**
-     * Sets the stokes for the leg servos.
-     *
-     * This method will set set the stroke param and then call setParams.
-     **/
-    stroke(strk) {
-        this.params.stroke = strk;
-
-        this.setParams();
-    }
-
-    /**
-     * Toggles run/pause
-     **/
-    pauseToggle() {
-        this.params.paused = !this.params.paused;
-
-        this.setParams();
-    }
-
-    /**
-     * Centers all servos
-     **/
-    centerServos() {
-        console.log("Centering servos.");
-        // Make the call
-        ajax({'url': `${base_url}/center_servos`}).then(
-            (req) => {
-                this.params = req.responseJSON;
-            }
-        ).then(
-            function() {
-                updateParamsView();
-            }
-        );
-    }
-
-    /**
-     * Save the current parameters to persistent storage
-     **/
-    saveParams() {
-        console.log("Saving params.");
-        // Make the call
-        ajax({'url': `${base_url}/save_params`}).then(
-            (req) => {
-                this.params = req.responseJSON;
-            }
-        ).then(
-            function() {
-                updateParamsView();
-            }
-        );
-    }
-
-    /**
-     * Steers the hexapod.
-     *
-     * Args:
-     *  direct: Optional one of 'fwd', rev', left' or 'right'
-     *  angle: Optional between -180 and 180, with 0 being forward, 90 = right,
-     *          -90 = left and 180 or -180 = reverse. Anything in between will
-     *          turn in that direction more or less sharp ????
-     *  callback: Optional callback to call with results of API call.
-     **/
-    steer(direct=null, angle=null, callback=null) {
-        console.log(`Steering - direct: ${direct}, angle: ${angle}, callback: ${callback}`);
-        // Set the ajax options
-        let opts = {
-            'url': `${base_url}/steer`,
-            'method': 'POST',
-            'contentType': 'application/json',
-            'data': JSON.stringify({"direct": direct, "angle": angle}),
-        };
-
-        // Make the call
-        ajax(opts).then(
-            (req) => {
-                let resp = req.responseJSON;
-                if (! resp.success) {
-                    console.log("Error in steer call:", resp.errors);
-                }
-                this.params = resp.params;
-            }
-        ).then(
-            function() {
-                updateParamsView();
-            }
-        ).then(
-            () => {
-                if (callback!==null) {
-                    callback();
-                }
-            }
-        );
-    }
-}
-
-/**
- * Called to update a range slider bubble with the current value.
- **/
-function setRangeBubble(range, bubble) {
-  const val = range.value;
-  const min = range.min ? range.min : 0;
-  const max = range.max ? range.max : 100;
-  const newVal = Number(((val - min) * 100) / (max - min));
-  bubble.innerHTML = val;
-
-  // Sorta magic numbers based on size of the native UI thumb
-  bubble.style.left = `calc(${newVal}% + (${8 - newVal * 0.15}px))`;
-}
-
-/**
- * Called when a range slider value was changed to the final value.
- * Receives the event as argument from which the slider name can be retrieved.
- *
- * If the name of the slider element is "speed", then the setParam method will
- * be called to send the new speed value to the hexapod.
- **/
-function rangeChanged(event) {
-    let param = event.target.name;
-    let value = event.target.valueAsNumber;
-
-    console.log("Slider changed", param, "to", value);
-
-    // Is it a speed change?
-    if (param === "speed") {
-        hexapod.speed(value);
-    }
-    // Is it a stroke change?
-    if (param === "stroke") {
-        hexapod.stroke(value);
-    }
-}
+// This is the base URL to use depending on where we run from
+let base_url = '';
 
 /**
  * Called when a navigation bar icon was clicked to change the active view.
@@ -229,178 +12,159 @@ function rangeChanged(event) {
  * @param {str} func The expected function this click is to perform as a
  *        free form text string used to determine the acťion to perform.
  **/
-function navChange(event, func) {
-    // From the click target, find the closest div.sect parent. This is the
-    // section the clicked happen in.
-    let sect = event.target.closest("div.sect")
+function navChange(event) {
+    // We get the function to do from the func data attribute on the target
+    let func = event.target.dataset.func;
+
+    // Find the section for this function
+    let sect = document.querySelector(`div.sect.${func}`)
     if (! sect) {
-        conslole.log("Could not find a parent div.sect for click target: ", event.target);
+        console.log(`Could not find a div.sect for : ${func}`);
         return;
     }
 
-    // Navigation between config, status or fw_update views?
-    if (func === "config" || func === "home" || func == "fw_update") {
-        // The func value is the section to be switched on, which will be a
-        // div element with 'sect' class to indicate it's a section, and also
-        // the functionality class which is what we get in func. Combine these
-        // to get a DOM selector for the div section that is going to be
-        // switched on.
-        let switch_on = `div.sect.${func}`;
+    // First switch off all sections
+    document.querySelectorAll("div.sect").forEach(el => el.style.display = "none");
 
-        // The current section we're in needs to be switched off, and the other
-        // switched on.
-        sect.style.display = "none";
-        let target_sect = document.querySelector(switch_on);
-        target_sect.style.display = "inline";
+    // Now switch on the section for this function
+    sect.style.display = "block";
 
-        // If going to config, also refresh the config automatically.
-        if (func == "config") {
-            refreshConfig();
-        } else if (func == "fw_update") {
-            // We empty the log div and hide
-            target_sect.querySelector("pre.log_data").textContent = ""
-            target_sect.querySelector("pre.log_data").style.display = "none";
+    // And remove the active style from all nav items
+    document.querySelectorAll("div.nav span").forEach(el => el.classList.remove("active"));
+    // And set the current item to active
+    event.target.classList.add("active");
+}
 
-            // We display the update_log button
-            target_sect.querySelector("button.update_log").style.display = "inline-block";
+/**
+ * Called wherever a steer button is pressed.
+ *
+ * Args:
+ *  event: The press event.
+ *  dir: The direction: 'fwd', 'rev', 'rotr' or 'rotl'
+ **/
+function steerEvent(event, dir) {
+    console.log(event);
+    let opts = {
+        'url': `${base_url}/steer`,
+        'method': 'POST',
+        'contentType': 'application/json',
+        'data': JSON.stringify({'dir': dir})
+    };
+
+    // Call the API to run or pause based on the desired new state
+    ajax(opts).then(
+        function(res) {
+            console.log(res);
         }
-        
-        return;
-    }
-
-    // Refresh the config view?
-    if (func === "refresh" ) {
-        // Remove any error blinker class added previously on save error
-        event.target.classList.remove("err_blinker");
-        if (sect.classList.contains("config")) {
-            refreshConfig();
-        } else {
-            refreshStatus(updateStatus);
-        }
-        return;
-    }
-
-    console.log(`Uknow navigation function: ${func}`);
+    );
 }
 
 /**
  * Called when the pause / run button is clicked to toggle pause/run mode.
  **/
-function pauseToggle(event) {
-    hexapod.pauseToggle();
+function playPauseEvent(event) {
+    // Determine the new state by looking at the current button name.
+    let new_state = event.target.innerText === "play_circle" ? "run" : "pause";
 
-    // Update the button icon
-    if (hexapod.params.paused) {
-        event.target.innerText = "play_circle";
-    } else {
-        event.target.innerText = "pause_circle";
+    let opts = {
+        'url': `${base_url}/${new_state}`,
+        'method': 'POST',
+        'contentType': 'application/json',
+    };
+
+    // Call the API to run or pause based on the desired new state
+    ajax(opts).then(
+        function(res) {
+            console.log(res);
+            // Update the button icon
+            if (new_state === "pause") {
+                event.target.innerText = "play_circle";
+            } else {
+                event.target.innerText = "pause_circle";
+            }
+        }
+    );
+}
+
+/***
+ * Called when a slider knob event happens.
+ * This will show the value bubble, move it and update its value as the slider
+ * is moved, and also hide it again when released.
+ **/
+function sliderEvent(event) {
+    // The value div is expected to the next element after the target in the
+    // DOM.
+    const val_div = event.target.nextElementSibling;
+    // Get the value in text format including the unit from the input element
+    // data-unit attribute
+    const val_txt = event.target.value + event.target.dataset.unit;
+    
+    switch (event.type) {
+        case "input":
+            val_div.textContent = val_txt;
+            break;
+        case "change":
+            console.log(`Gonna set ${event.target.name} to ${event.target.value}`);
+            // Set up the AJAX call
+            let opts = {
+                'url': `${base_url}/${event.target.dataset.endpoint}`,
+                'method': 'POST',
+                'contentType': 'application/json',
+                // Since the key is a variable it needs to be in square
+                // brackets to be evaluated as a string to be used as the key
+                // \_(:-/)_/
+                'data': JSON.stringify({[event.target.name]: parseInt(event.target.value, 10)})
+            };
+
+            // Call the API to run or pause based on the desired new state
+            ajax(opts).then(
+                function(res) {
+                    console.log(res);
+                }
+            );
+            break;
     }
 }
 
-
 /**
- * Called wherever a trim or phase input is changed.
+ * Called to attach all required event listeners to all range input sliders
  **/
-function inputChanged(event) {
-    // To know if this is a trim, phase_shift or amplitude input change, we
-    // need the class name of the closest parent <tr>.
-    let param = event.target.closest("tr").className;
-    // The input element name is the servo that has to change, left, mid or
-    // right
-    let servo = event.target.name;
-    // And the new value
-    let val = event.target.valueAsNumber;
-
-    console.log(`Changing ${servo} servo ${param} to ${val}`);
-    
-    // Do it, and then update the hexapod
-    hexapod.params['servo'][servo][param] = val;
-    hexapod.setParams();
-}
-
-/**
- * Finds all number input controls in the servo control table and binds their
- * onchange event to the inputChanged method.
- **/
-function bindInputChanges() {
-    let input = null;
-
-    document.querySelectorAll("div.servo tr input[type=number]").forEach((input) => {
-        input.addEventListener('change', inputChanged);
+function attachRangeSliderEvents() {
+    const sliders = document.querySelectorAll("input[type=range]");
+    sliders.forEach(slider => {
+        // This fires every time the slider value changes and is used to update
+        // the value display div
+        slider.addEventListener("input", sliderEvent);
+        // This fires on the final slider value when it comes to rest and is
+        // used to make the API call.
+        slider.addEventListener("change", sliderEvent);
     });
 }
 
 /**
- * This function can be called to update the control parameter arguments from
- * the params values from the hexapod instance.
+ * Called when any of the sliders are changed
  **/
-function updateParamsView() {
-    // First zoom in on the control section
-    let sect = document.querySelector("div.sect.control");
-    
-    // Lets start with the pause/run button
-    let target = sect.querySelector("tr.controls span.playpause");
-    if (hexapod.params.paused) {
-        target.innerText = "play_circle";
-    } else {
-        target.innerText = "pause_circle";
-    }
+function sliderChange(event, measure) {
+    console.log("Slider change: ", event);
+    let val_elem = event.target.parentElement.querySelector('.val')
 
-    // Now the speed
-    target = sect.querySelector("tr.speed input");
-    target.value = hexapod.params.speed;
-    // And trigger the change event to update the bubble
-    target.dispatchEvent(new Event('input'));
-
-    // And the stroke
-    target = sect.querySelector("tr.stroke input");
-    target.value = hexapod.params.stroke;
-    // And trigger the change event to update the bubble
-    target.dispatchEvent(new Event('input'));
-
-    // Now the trim, phase_shift and amplitude inputs
-    // And the trim
-    let input, param, servo;
-    // These parameters are number type inputs, one params per table row inside
-    // the servo div.
-    document.querySelectorAll("div.servo tr input[type=number]").
-        forEach((input) => {
-            // The parameter (trim, phase_shift or amplitude we get from the
-            // closest parent tr element
-            param=input.closest("tr").className;
-            // The servo we are targeting is the input name
-            servo=input.name;
-            // Set the input value from the hexapod params
-            input.value = hexapod.params.servo[servo][param];
-        });
+    val_elem.textContent = event.target.value + measure;
 }
-
 
 /**
  * Called as the main function to start the app.
  **/
 function main() {
+    // Attach all event listeners to the input range sliders so we can react on
+    // changes and to show a nice little bubble to help you find the right
+    // value to set it to.
+    attachRangeSliderEvents();
 
-    // Sets up the range slider bubbles and also an event listener to call when
-    // the range value slider settles on the final value.
-    let allRanges = document.querySelectorAll(".range-wrap");
-    allRanges.forEach(wrap => {
-        const range = wrap.querySelector(".range");
-        const bubble = wrap.querySelector(".bubble");
-
-        range.addEventListener("input", () => {
-            setRangeBubble(range, bubble);
-        });
-        setRangeBubble(range, bubble);
-
-        range.addEventListener("change", rangeChanged);
-    });
-
-    // Bind the trim and phase inputs
-    bindInputChanges();
-
-    // Create an instance of the hexapod controller
-    hexapod = new Hexapod();
+    // Simulate a click of the control nav item to open that section by default
+    let nav_item = document.querySelector("div.nav span[data-func=control]");
+    // We need to dispatch a specific event to simulate the target being
+    // passed in
+    nav_item.dispatchEvent(new Event("click", {target: nav_item}));
 }
 
 document.addEventListener("DOMContentLoaded", main);

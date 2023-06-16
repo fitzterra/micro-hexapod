@@ -342,7 +342,6 @@ class Hexapod:
         # Always save trim values locally after setting them
         self._saveTrim()
 
-
     def centerServos(self, with_trim=True):
         """
         Centers all servos with or without the current trim adjustment for the

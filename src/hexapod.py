@@ -216,9 +216,9 @@ class Hexapod:
             # and the left leg stroke longer. If negative, we do it the other
             # way around
             if self._steer_angle > 0:
-                stroke = [self._stroke - adj, self._stroke + adj]
-            else:
                 stroke = [self._stroke + adj, self._stroke - adj]
+            else:
+                stroke = [self._stroke - adj, self._stroke + adj]
             # We may now be outside the min or max stroke, so we adjust if
             # needed.
             val = max(stroke)

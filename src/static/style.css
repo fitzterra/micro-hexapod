@@ -197,20 +197,17 @@ div.steer .grid-item.slider {
     padding: 1px;
     font-size: 80%;
     text-align: center;
-}
-div.steer .grid-item div.label {
-    margin: 0px;
-}
-div.steer .grid-item.slider {
-    place-self: center;
     width: 90%;
     position: relative;
     height: 2rem;
 }
+div.steer .grid-item div.label {
+    margin: 0px;
+}
 div.steer .grid-item.slider input {
     width: 70%;
     position: absolute;
-    right: 15%;
+    right: 13%;
 }
 div.steer .grid-item.slider div.label,
 div.steer .grid-item.slider div.val {

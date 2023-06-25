@@ -1,55 +1,75 @@
 body {
     background: #252525;
     color: #ccc;
-    /***
-     * Changing this font size should scale the full site accordingly.
-     * The only other thing to manually change are checkboxes. See for the
-     * config section input below.
-     * */
-    font: 48px sans-serif;
-    white-space: nowrap;
+    border-radius: 0.4rem;
+    font-family: "Comfortaa", sans-serif;
 }
 
 .viewport {
-    /* Centers the viewport both horizontally and vertically on the page. */
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
     border: 1px solid #555;
-    padding: 10px;
-    border-radius: 0.4em;
+    padding: 0.8rem;
+    border-radius: inherit;
     box-shadow: 4px 4px 8px #111;
-    max-width: 90%;
+    max-width: fit-content;
+    margin: auto;
 }
 
 .sitehead {
     text-align: center;
-    font-size: 150%;
+    font-size: 1.5rem;
     font-weight: bolder;
-    margin: 0px 0px 18px 0px;
     text-shadow: 1px 2px 2px #999;
     color: #5D8BE0;
+    margin: 0px auto 0.5rem;
 }
 
-/* Hide all sections - the default will be shown on app startup */
-div.sect {
-    display: none;
+/*<<<< The popup dialog box >>>>*/
+dialog.msg {
+    width: 50%;
+    padding: 0.5rem;
+    text-align: center;
+    border: none;
+    border-radius: inherit;
+    color: #fff;
+    background: rgba(50, 50, 50, 0.8);
+
 }
+dialog.msg.err {
+    background: rgba(200, 50, 50, 0.8);
+}
+dialog.msg::backdrop {
+    background: rgba(10, 10, 10, 0.4);
+}
+dialog.msg.err::backdrop {
+    background: rgba(100, 0, 0, 0.2);
+}
+dialog.msg div.msg {
+    white-space: break-spaces;
+}
+dialog.msg button {
+	background: #303030;
+	border: none;
+	border-radius: inherit;
+	font-size: 1rem;
+	color: #aaa;
+	margin-top: 0.5rem;
+	cursor: pointer;
+}
+/*<<<< END: The popup dialog box >>>>*/
 
 /*<<<< Navigation block at the top of the site >>>>*/
 div.nav {
     position: relative;
-    top: -10px;
     background: #101010;
-    border-radius: 0.4em;
-    font-size: 60%;
-    padding: 0em 0.2em;
+    padding: 0em 0.2rem;
+    border-radius: 0.3em;
+	margin: 0px auto 0.5rem;
 }
 
 div.nav span {
     cursor: pointer;
-    width: 1em;
+    width: 1.5rem;
+    line-height: 1.8rem;
 }
 div.nav span.active,
 div.nav span:hover {
@@ -57,42 +77,74 @@ div.nav span:hover {
 }
 /*>>> END: Navigation block <<<*/
 
-
-/*<<<< Overlay styling to disable underlying elements >>>>*/
-/** NOTE: To create an overlay in any block, the parent blocks needs to have a
- * position of relative or sticky applied, or else the overlay will not fully
- * cover the block.
- * Then just add:
- * <div class="overlay"><div>
- * to the parent block, and control the overlay from JS using the display
- * property.
+/* Hide all sections - the default will be shown on app startup.
+ * Also set some default section styles
  **/
-div.overlay {
-    position: absolute;
+div.sect {
     display: none;
-    height: 100%;
-    width: 100%;
-    background-color: black;
-    opacity: 80%;
-    z-index: 1000;
-    border-radius: 0.4em;
+	background: #101010;
+    border-radius: inherit;
+	padding: 0.5rem;
+    font-size: 0.8rem;
 }
+
+/*<<<< Settings block >>>>*/
+div.sect.settings input {
+    font-size: 0.8rem;
+    padding: 0px;
+}
+/* The trim column container divs */
+div.sect.settings div.trim {
+    /* This is to allow vertical centering in the div */
+    position: relative;
+}
+div.sect.settings div.trim div {
+    display: inline-block;
+}
+div.sect.settings div.trim div.main_label {
+    /*font-size: 0.4em;*/
+    /* Center vertically */
+    position: inherit;
+    top: 50%;
+    transform: translateY(50%);
+
+}
+div.sect.settings div.trim div.col {
+    text-align: center;
+}
+div.sect.settings div.trim div.col label {
+    display: flex;
+    flex-direction: column;
+}
+div.sect.settings div.trim div.col label input {
+    width: 2.5rem;
+    margin: auto;
+}
+div.sect.settings div.trim button {
+    /* Center vertically */
+    position: inherit;
+    top: 50%;
+    transform: translateY(50%);
+
+}
+/*<<<< END:Settings block >>>>*/
 
 /*<<<< Steering grid block >>>>*/
 div.steer {
-    background: #101010;
     width: fit-content;
     margin: auto;
     border: 1px;
-    border-radius: 10px;
+    border-radius: inherit;
     display: grid;
-    grid-template-columns: repeat(5, 1.6em);
-    grid-template-rows: repeat(4, 1.6em);
+    grid-template-columns: repeat(5, 3rem);
+    grid-template-rows: repeat(6, 3rem);
     grid-template-areas:
-        ". fwd . spd strk"
-        "rotl run rotr spd strk"
-        ". rev . spd strk"
-        "angle angle angle angle angle";
+        ". . fwd . ."
+        ". rotl run rotr ."
+        ". cntr rev . ."
+        "angle angle angle angle angle"
+        "spd spd spd spd spd"
+        "strk strk strk strk strk";
     grid-gap: 1px;
 }
 
@@ -115,61 +167,53 @@ div.steer .rotl {
 div.steer .run {
     grid-area: run;
 }
+div.steer .cntr {
+    grid-area: cntr;
+    font-size: 2rem !important;
+}
+div.steer .angle {
+    grid-area: angle;
+}
 div.steer .spd {
     grid-area: spd;
 }
 div.steer .strk {
     grid-area: strk;
 }
-div.steer .angle {
-    grid-area: angle;
-}
-/*
-div.steer .ang_lab {
-    grid-area: ang_lab;
-}
-div.steer .angle {
-    grid-area: angle;
-}
-div.steer .ang_val {
-    grid-area: ang_val;
-}
-*/
 
 div.steer .grid-item.material-icons {
-    font-size: 1.2em;
+    font-size: 2.5rem;
     place-self: center;
-    border-radius: 5px;
+    border-radius: inherit;
     cursor: pointer;
 }
+div.steer .grid-item.material-icons.active {
+    color: green;
+}
 
-div.steer .grid-item.vslider,
-div.steer .grid-item.hslider {
+div.steer .grid-item.slider {
     place-self: center;
-    border-radius: 5px;
-    padding: 3px;
-    font-size: 0.23em;
+    border-radius: inherit;
+    padding: 1px;
+    font-size: 80%;
     text-align: center;
 }
 div.steer .grid-item div.label {
     margin: 0px;
 }
-div.steer .grid-item.vslider input {
-    width: 100%;
-}
-div.steer .grid-item.hslider {
+div.steer .grid-item.slider {
     place-self: center;
     width: 90%;
     position: relative;
-    height: 2em;
+    height: 2rem;
 }
-div.steer .grid-item.hslider input {
+div.steer .grid-item.slider input {
     width: 70%;
     position: absolute;
     right: 15%;
 }
-div.steer .grid-item.hslider div.label,
-div.steer .grid-item.hslider div.val {
+div.steer .grid-item.slider div.label,
+div.steer .grid-item.slider div.val {
     position: absolute;
     width:15%;
     left 0%;
@@ -178,17 +222,11 @@ div.steer .grid-item.hslider div.val {
     top: 50%;
     transform: translateY(-50%);
 }
-div.steer .grid-item.hslider div.val {
+div.steer .grid-item.slider div.val {
     right: 0%;
 }
 /*<<<< END: Steering grid block >>>>*/
-
-
 div.app_version {
-	font-size: small;
-	position: relative;
-	left: 0px;
-	bottom: 0px;
-	color: #888;
+	font-size: 0.5rem;
+	margin: 0.5rem auto 0px;
 }
-

@@ -2,6 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0" />
         <title>Micro Hexapod</title>
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
         <link rel="stylesheet" type="text/css" href="static/style.css">
@@ -11,15 +12,52 @@
 
     <body>
         <div class="viewport">
-            <p class="sitehead">Micro Hexapod</p>
+            <h1 class="sitehead">Micro Hexapod</h1>
 
             <div class="nav">
-                <span class="material-icons" data-func="settings" onclick="navChange(event);">settings_application</span>
                 <span class="material-icons" data-func="control" onclick="navChange(event);">videogame_asset</span>
+                <span class="material-icons" data-func="settings" onclick="navChange(event);">settings_application</span>
             </div>
 
+            <dialog class="msg">
+                <div class="msg"></div>
+
+                <button onclick="event.target.closest('dialog').close();">
+                    OK
+                </button>
+            </dialog>
+
             <div class="sect settings">
-                <p>Settings</p>
+                <label class="base_url">
+                    API Base URL:
+                    <input type="text" name="base_url" oninput="manageBaseURL(event);">
+                    <button disabled onclick="manageBaseURL(event);">Test</button>
+                </label>
+                <div class="trim">
+                    <div class="main_label">Trim:</div>
+                    <div class="col">
+                        <label class="left">
+                            Left:
+                            <input name="left" type="number" min=-10 max=10
+                                onchange="trimChanged(event);">
+                        </label>
+                    </div>
+                    <div class="col">
+                        <label class="mid">
+                            Mid:
+                            <input name="mid" type="number" min=-10 max=10
+                                onchange="trimChanged(event);">
+                        </label>
+                    </div>
+                    <div class="col">
+                        <label class="right">
+                            Right:
+                            <input name="right" type="number" min=-10 max=10
+                                onchange="trimChanged(event);">
+                        </label>
+                    </div>
+                    <button disabled onclick="updateTrims(event);">Update</button>
+                </div>
             </div>
 
             <div class="sect control">
@@ -45,26 +83,30 @@
                         onclick="playPauseEvent(event)">
                         play_circle
                     </div>
-                    <div class="spd grid-item vslider">
-                        <div class="label">Speed</div>
-                        <input type="range" name="speed" min=0 max=100
-                                            orient="vertical" data-unit='%'
-                                            data-endpoint='speed'>
-                        <div class="val">0%</div>
+                    <div class="cntr grid-item material-icons"
+                         onclick="centerServosEvent();">
+                        adjust
                     </div>
-                    <div class="strk grid-item vslider">
-                        <div class="label">Stroke</div>
-                        <input type="range" name="stroke" min=0 max=100
-                                            orient="vertical" data-unit='%'
-                                            data-endpoint='stroke'>
-                        <div class="val">0%</div>
-                    </div>
-                    <div class="angle grid-item hslider">
+                    <div class="angle grid-item slider">
                         <div class="label">Steer Angle</div>
                         <!-- The angle is set via the /steer' endpoint -->
                         <input type="range" name="angle" min=-90 max=90
                                             data-unit='°' data-endpoint='steer'>
                         <div class="val">0°</div>
+                    </div>
+                    <div class="spd grid-item slider">
+                        <div class="label">Speed</div>
+                        <input type="range" name="speed" min=0 max=100
+                                            data-unit='%'
+                                            data-endpoint='speed'>
+                        <div class="val">0%</div>
+                    </div>
+                    <div class="strk grid-item slider">
+                        <div class="label">Stroke</div>
+                        <input type="range" name="stroke" min=0 max=100
+                                            data-unit='%'
+                                            data-endpoint='stroke'>
+                        <div class="val">0%</div>
                     </div>
                 </div>
 

@@ -1,12 +1,14 @@
 """
 Web interface.
 """
-from webserver import gc, app, logging, runserver
+from webserver import gc, app, logging
+from webserver import runserver # Convenience import for main @pylint: disable=unused-import
+from version import VERSION
 
 #pylint: disable=broad-except
 
 @app.before_request
-async def request_hook(request):
+async def requestHook(request):
     """
     Hook that is called before every request.
 
@@ -19,6 +21,7 @@ async def request_hook(request):
         request.args,
         request.json
     )
+    gc.collect()
 
 @app.route('/get_params')
 async def getParams(request):
@@ -50,7 +53,6 @@ async def getParams(request):
         "speed": (float),   # Period as a % of min and max periods
     }
     """
-    gc.collect()
     return request.app.hexapod.params
 
 @app.route('/pause', methods=["POST"])
@@ -61,7 +63,6 @@ async def pause(request):
     POST:
         An empty body
     """
-    gc.collect()
 
     request.app.hexapod.pause = True
 
@@ -73,7 +74,6 @@ async def run(request):
     POST:
         An empty body
     """
-    gc.collect()
 
     request.app.hexapod.pause = False
 
@@ -104,7 +104,6 @@ async def trim(request):
         If any errors, returns:
             {"errors": [error message(s)]}
     """
-    gc.collect()
     if request.method == "GET":
         return request.app.hexapod.trim
 
@@ -152,7 +151,6 @@ async def centerServos(request):
     POST response:
         {errors": [One or more error strings if error]}
     """
-    gc.collect()
     resp = {"errors": []}
     try:
         with_trim = request.json.get("with_trim", True) if request.json else True
@@ -188,7 +186,6 @@ async def steer(request):
         If any errors, returns:
             {"errors": [error message(s)]}
     """
-    gc.collect()
     if request.method == "GET":
         return request.app.hexapod.steer
 
@@ -225,7 +222,6 @@ async def speed(request):
         If any errors, returns:
             {"errors": [error message(s)]}
     """
-    gc.collect()
     if request.method == "GET":
         return {"speed": request.app.hexapod.speed}
 
@@ -275,7 +271,6 @@ async def stroke(request):
         If any errors, returns:
             {"errors": [error message(s)]}
     """
-    gc.collect()
     if request.method == "GET":
         return {"stroke": request.app.hexapod.stroke}
 
@@ -303,7 +298,6 @@ async def memInfo(_):
         Returns:
             {"alloc": int, "free": int}
     """
-    gc.collect()
     # This gc has these members @pylint: disable=no-member
     return {"alloc": gc.mem_alloc(), "free": gc.mem_free()}
 

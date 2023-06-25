@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # Try to connect to the access point
     loop.create_task(connect())
     if conf['web_app']['enabled']:
-        from website import runserver, app as webapp
+        from hexapod_api import runserver, app as webapp
         webapp.hexapod = hexapod
         loop.create_task(runserver())
 

@@ -1,5 +1,8 @@
 """
-Web interface.
+Hexapod Web API module.
+
+This module imports the web app from the webserver module and then extenss the
+main app with all the API endpoints exposed for the Hexapod.
 """
 from webserver import gc, app, logging
 from webserver import runserver # Convenience import for main @pylint: disable=unused-import

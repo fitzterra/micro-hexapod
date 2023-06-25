@@ -10,8 +10,7 @@ from bottle import (
 )
 
 
-# Simulate: from version import VERSION
-VERSION = '1.2.3'
+from version import VERSION
 
 
 class Sim:
@@ -528,5 +527,16 @@ def memInfo():
             {"alloc": int, "free": int}
     """
     return {"alloc": 1000, "free": 1000}
+
+@route('/version')
+def version():
+    """
+    Returns the current app version
+
+    GET:
+        Returns:
+            {"version": 'major.minor.patch'}
+    """
+    return {"version": VERSION}
 
 run(host='0.0.0.0', port=5000, reloader=True, debug=True)

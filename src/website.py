@@ -304,4 +304,16 @@ async def memInfo(_):
             {"alloc": int, "free": int}
     """
     gc.collect()
+    # This gc has these members @pylint: disable=no-member
     return {"alloc": gc.mem_alloc(), "free": gc.mem_free()}
+
+@app.route('/version')
+async def version(_):
+    """
+    Returns the current app version
+
+    GET:
+        Returns:
+            {"version": 'major.minor.patch'}
+    """
+    return {"version": VERSION}

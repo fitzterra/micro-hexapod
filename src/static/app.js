@@ -158,6 +158,33 @@ function steerEvent(event, dir) {
 }
 
 /**
+ * Called to fetch and update the app version
+ ***/
+function updateVersion() {
+    // Get the version element
+    let version = document.querySelector("div.app_version span");
+
+    // set the call options
+    let opts = {
+        'url': `${base_url}/version`,
+        'method': 'GET',
+        'contentType': 'application/json',
+    };
+    // Do it
+    ajax(opts).then(
+        // Success
+        function(res) {
+            console.log("Vesion:", res.responseJSON);
+            version.textContent = res.responseJSON.version;
+        },
+        // Error
+        function(err) {
+            console.log("Version error: ", err);
+        }
+    );
+}
+
+/**
  * Called to update the control UI elements to show the active steering
  * direction, the steer angle, the speed and stroke settings.
  **/
@@ -475,6 +502,9 @@ function main() {
         res => {
             if (res === true) {
                 // The URL is valid
+                // Update the app version
+                updateVersion();
+
                 // Simulate a click of the control nav item to open that section by default
                 let nav_item = document.querySelector("div.nav span[data-func=control]");
                 // We need to dispatch a specific event to simulate the target being

@@ -84,6 +84,7 @@ MPY_SRC = boot.py \
 		  config.py \
 		  webserver.py \
 		  website.py \
+		  version.py \
 		  lib/wemosD1_maps.py \
 		  lib/networking.py \
 

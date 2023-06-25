@@ -1,6 +1,7 @@
 """
 General config file
 """
+from version import VERSION
 import lib.wemosD1_maps as D1_map
 import ujson
 

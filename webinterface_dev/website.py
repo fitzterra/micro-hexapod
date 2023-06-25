@@ -3,8 +3,10 @@
 Development server for device web interface.
 """
 
+import logging
+
 from bottle import (
-    route, get, post, run, request, static_file
+    route, get, post, run, request, static_file, response, json_dumps
 )
 
 
@@ -37,6 +39,8 @@ class Sim:
     # for the left/right servos
     STROKE_MAX = (STROKE_MAX_ANGL - STROKE_MIN_ANGL) // 2
 
+    LOG_PREFIX = "SIM"
+
     def __init__(self):
         """
         Class init.
@@ -44,25 +48,41 @@ class Sim:
         self._period = 2000
         self._stroke = 30
         self._paused = True
-        self.servos = {
-            "left": {
-                "amplitude": 30,
-                "phase_shift": 0,
-                "trim": 0,
-            },
-            "mid": {
-                "amplitude": 10,
-                "phase_shift": 90,
-                "trim": 0,
-            },
-            "right": {
-                "amplitude": 30,
-                "phase_shift": 0,
-                "trim": 0,
-            },
-        }
+        self._trim = [0, 0, 0]
         self._steer_dir = 'fwd'
         self._steer_angle = 0
+
+    @property
+    def trim(self):
+        """
+        Returns the trim for each of the servos.
+
+        Returns:
+            [left trim, mid trim, right trim]
+        """
+        return self._trim
+
+    @trim.setter
+    def trim(self, trim):
+        """
+        Sets the trim for one or more of the servos.
+
+        The trim degrees for each servo is given in a 3 element list. Any
+        element that is None will not change that servo's trim.
+
+        For e.g. to only set the mid servo trim, pass the trim list as :
+            [None, 10, None]
+
+        Args:
+            trim (list): [left trim, mid trim, right trim]
+        """
+        # Run over each servo, setting both the self._trim element for the
+        # servos, as well as the actual servo trim
+        for idx, trim_val in enumerate(trim):
+            if trim_val is None:
+                continue
+            # Set the servo trim and our trim value
+            self._trim[idx] = trim_val
 
     @property
     def steer(self):
@@ -210,54 +230,23 @@ class Sim:
         # Calculate the new stroke value
         self._stroke = val * self.STROKE_MAX // 100
 
-    def getParams(self):
+    def centerServos(self, with_trim=True):
         """
-        Returns all runtime parameters and their current values.
+        Centers all servos with or without the current trim adjustment for the
+        servo
 
-        Returns:
-            The current params as a dictionary:
-            {
-                "servo": {
-                    "mid": {
-                        "amplitude": (int),
-                        "phase_shift": (int),
-                        "trim": (int)
-                    },
-                    "left": {
-                        "amplitude": (int),
-                        "phase_shift": (int),
-                        "trim": (int)
-                    },
-                    "right": {
-                        "amplitude": (int),
-                        "phase_shift": (int),
-                        "trim": (int)
-                    }
-                },
-                "paused": (bool),
-                "period": (int),
-                "speed": (float),   # Period as a % of min and max periods
-            }
+        This call will also force the hexapod to it's pause state.
         """
-        params = {
-            'period': self._period,
-            'speed': self.speed,
-            'paused': self._paused,
-            'servo': self.servos
-        }
-
-        return params
-
-    def centerServos(self):
-        """
-        Enters the pause state for all servos and then sets them to their
-        center position (90°) taking the trim for each servo into account.
-        """
-        # The ServoOscillator has a center_servo() method that will auto pause
-        # the servos, but here we only have to set the global pause
+        logging.info(
+            "%s: Centering servos %s trim",
+            self.LOG_PREFIX,
+            "with" if with_trim else "without"
+        )
+        # The center_servo call will auto pause each servo, but we sill have to
+        # sync the global pause state. Do not call the pause setter as this
+        # will cycle through each servo and force a pause, while the
+        # center_servo() call will automatically do the pause for each servo.
         self._paused = True
-
-        return self.getParams()
 
     def saveParams(self):
         """
@@ -285,6 +274,69 @@ def index():
     """
     return static_file('index.html', root='./static')
 
+@route('/trim', method=["GET", "POST"])
+def trim():
+    """
+    Gets or sets the servo trim values.
+
+    GET:
+        Returns the current trim values as:
+            [left trim, mid trim, right trim]
+
+    POST request data:
+        A list with the trim values for the servos:
+            [left trim, mid trim, right trim]
+        Any of the 3 trim values can be None (null) to not set the trim for
+        that servo.
+        Optionally, this could also be a JSON object with a 'trim' keyword and
+        value the list of trim settings, and an optional 'center' boolean:
+            {
+                "trim": [left trim, mid trim, right trim],
+                "center": True/False # If true, servos will also be centered
+                            with new trim values.
+            }
+
+    POST response:
+        If no errors, returns the same as for the GET request.
+        If any errors, returns:
+            {"errors": [error message(s)]}
+    """
+    if request.method == "GET":
+        # Because bottle will only auto convert a dict to JSON response, we need
+        # to do it ourselves if we only return a list, but still want a JSON
+        # response.
+        response.set_header('Content-Type', 'application/json')
+        return json_dumps(sim.trim)
+
+    # By default we do not also center servos
+    center = False
+
+    # Must be a POST, body could be a list or dict
+    trim_list = request.json
+    # If it's a dict, we expect the 'trim' key, from which we will then take
+    # the value which is expected to the trim list.
+    if isinstance(trim_list, dict):
+        if not "trim" in trim_list:
+            return {"errors": ["No 'trim' key in parameters."]}
+        # Before changing trim_list from a dict to the actual trim values, get
+        # the center value out if any
+        center = trim_list.get("center", False)
+        trim_list = trim_list['trim']
+
+    if not isinstance(trim_list, list) or len(trim_list) != 3:
+        return {"errors": ["Expect a list of three trim values."]}
+
+    # Set t he trims
+    sim.trim = trim_list
+
+    # Do we also center?
+    if center:
+        sim.centerServos(True)
+
+    # See comment for GET above about returning a list a JSON
+    response.set_header('Content-Type', 'application/json')
+    return json_dumps(sim.trim)
+
 @route('/pause', method=["POST"])
 def pause():
     """
@@ -293,7 +345,7 @@ def pause():
     POST:
         An empty body
     """
-    return None
+    sim._paused = True
 
 @route('/run', method=["POST"])
 def runServos():
@@ -303,7 +355,7 @@ def runServos():
     POST:
         An empty body
     """
-    return None
+    sim._paused = False
 
 @route('/steer', method=["GET", "POST"])
 def steer():
@@ -442,5 +494,39 @@ def stroke():
         return {"errors": [str(exc)]}
 
     return {"stroke": sim.stroke}
+
+@route('/center_servos', method=["POST"])
+def centerServos():
+    """
+    Sets all servos to the center position (90°), with or without the current
+    trim settings.
+
+    NOTE: This will force the paused state if not already paused.
+
+    POST request data:
+        "with_trim": boolean
+
+    The post data is optional and if not supplied, "with_trim" will default to
+    True, meaning that the current trim settings will be taken into account
+    when centering the servos.
+
+    POST response:
+        {errors": [One or more error strings if error]}
+    """
+    resp = {"errors": []}
+    sim._paused = True
+
+    return resp
+
+@route('/mem')
+def memInfo():
+    """
+    Returns the current memory status.
+
+    GET:
+        Returns:
+            {"alloc": int, "free": int}
+    """
+    return {"alloc": 1000, "free": 1000}
 
 run(host='0.0.0.0', port=5000, reloader=True, debug=True)

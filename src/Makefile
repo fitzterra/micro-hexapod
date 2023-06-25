@@ -146,10 +146,11 @@ MP_SRC_MODULES = \
 MP_SRC_MOD_SYMLINKS = $(patsubst %.py,$(MP_SRC_PORT_DIR)/modules/%.py,$(notdir $(MP_SRC_MODULES)))
 
 # These are any static files we need to upload
-STATIC_SRC = static/index.html \
-		  static/style.css \
-		  static/app.js \
-		  static/ajax.js
+STATIC_SRC = 
+		# static/index.html \
+		#  static/style.css \
+		#  static/app.js \
+		#  static/ajax.js
 
 # We will minimise them before upload, so work out the minimized name
 STATICS_MIN = $(patsubst %,%.min,$(wildcard $(STATIC_SRC)))

@@ -92,8 +92,12 @@ async def trim(request):
         Any of the 3 trim values can be None (null) to not set the trim for
         that servo.
         Optionally, this could also be a JSON object with a 'trim' keyword and
-        value the list of trim settings:
-            {"trim": [left trim, mid trim, right trim]}
+        value the list of trim settings, and an optional 'center' boolean:
+            {
+                "trim": [left trim, mid trim, right trim],
+                "center": True/False # If true, servos will also be centered
+                            with new trim values.
+            }
 
     POST response:
         If no errors, returns the same as for the GET request.
@@ -104,6 +108,9 @@ async def trim(request):
     if request.method == "GET":
         return request.app.hexapod.trim
 
+    # By default we do not also center servos
+    center = False
+
     # Must be a POST, body could be a list or dict
     trim_list = request.json
     # If it's a dict, we expect the 'trim' key, from which we will then take
@@ -111,12 +118,19 @@ async def trim(request):
     if isinstance(trim_list, dict):
         if not "trim" in trim_list:
             return {"errors": ["No 'trim' key in parameters."]}
+        # Before changing trim_list from a dict to the actual trim values, get
+        # the center value out if any
+        center = trim_list.get("center", False)
         trim_list = trim_list['trim']
 
     if not isinstance(trim_list, list) or len(trim_list) != 3:
         return {"errors": ["Expect a list of three trim values."]}
 
     request.app.hexapod.trim = trim_list
+
+    # Do we also center?
+    if center:
+        request.app.hexapod.centerServos(True)
 
     return request.app.hexapod.trim
 

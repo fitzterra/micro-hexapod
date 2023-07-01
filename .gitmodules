@@ -7,3 +7,6 @@
 [submodule "submodules/microdot"]
 	path = submodules/microdot
 	url = https://github.com/miguelgrinberg/microdot.git
+[submodule "submodules/wifi-manager"]
+	path = submodules/wifi-manager
+	url = git@gitlab.gaul.za:gaulnet/micropython-wifi-manager.git

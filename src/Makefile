@@ -86,7 +86,6 @@ MPY_SRC = boot.py \
 		  hexapod_api.py \
 		  version.py \
 		  lib/wemosD1_maps.py \
-		  lib/networking.py \
 
 
 # The expected .mpy files for each .py above
@@ -137,6 +136,7 @@ MP_SRC_MODULES = \
     ../submodules/microdot/src/microdot.py \
     ../submodules/microdot/src/microdot_cors.py \
     ../submodules/micropython-tools/ulogging.py \
+    ../submodules/wifi-manager/lib/wifi_manager.py \
 
 # Determine the symlinked names of the MP source modules we want to bake into
 # the MP binary as frozen modules from the MP_SRC_MODULES list above.
@@ -227,6 +227,6 @@ build_micropython:
 	@echo Cleaning up all old modules...
 	@cd $(MP_SRC_PORT_DIR) && make clean-modules
 	@echo Linking all required modules to freeze into the MicroPython binary...
-	@cd $(MP_SRC_PORT_DIR)/modules && for m in $(realpath $(MP_SRC_MODULES)); do ln -s $$m; done
+	@cd $(MP_SRC_PORT_DIR)/modules && for m in $(realpath $(MP_SRC_MODULES)); do ln -vs $$m; done
 	@echo Builing new MicroPython binary. This may take a while with no output, so hang in there....
 	@docker run --rm -v $$HOME:$$HOME -u $$UID -w $(MP_SRC_PORT_DIR) larsks/esp-open-sdk make -j BOARD=GENERIC

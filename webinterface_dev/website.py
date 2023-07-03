@@ -266,6 +266,13 @@ def staticFiles(filepath):
     """
     return static_file(filepath, root='./static')
 
+@route('/favicon.ico')
+def favicon():
+    """
+    Serves the favicon.ico file.
+    """
+    return static_file("favicon.ico", root='./static')
+
 @route('/')
 def index():
     """

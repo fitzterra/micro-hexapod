@@ -2,8 +2,11 @@
 Main runtime
 """
 import gc
+import sys
 import uasyncio
 import ulogging as logging
+from led import LED
+from wemosD1_maps import LED as LED_PIN
 from hexapod import Hexapod
 from config import conf
 
@@ -25,14 +28,33 @@ def netCon():
     gc.collect()
     logging.info("Mem free after: %s", gc.mem_free())
 
+def _handleException(loop, context):
+    """
+    Global uasyncio exception handler.
+    """
+    logging.error("Exception: %s", context)
+
 
 if __name__ == "__main__":
+    # Turn the onboard LED on full on startup. If we go into AP mode, it will
+    # stay on as indicator.
+    # NOTE on the Wemos D1 the LED is connected to the high side, so we pass it
+    #   as a negative pin number to invert the on/off state.
+    led = LED(-LED_PIN)
+    led.on()
+
     netCon()
     gc.collect()
     logging.info("Setting up Hexapod.")
     logging.info("Mem free: %s", gc.mem_free())
 
     loop = uasyncio.get_event_loop()
+    loop.set_exception_handler(_handleException)
+
+    # Now we have connected to the local network, and will be running an
+    # asyncio event loop, so we can switch the LED to flashing mode to
+    # indicate we are connected and ready.
+    led.flash()
 
     hexapod = Hexapod(conf['pins'])
 

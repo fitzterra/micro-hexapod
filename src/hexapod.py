@@ -87,7 +87,7 @@ class Hexapod:
                         backwards, and must be in the STROKE_MAX range.
                 }
         """
-        # Make sure setup is a dict is not supplied
+        # Make sure setup is a dict if not supplied
         if not setup:
             setup = {}
 

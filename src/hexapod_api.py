@@ -1,7 +1,7 @@
 """
 Hexapod Web API module.
 
-This module imports the web app from the webserver module and then extenss the
+This module imports the web app from the webserver module and then extends the
 main app with all the API endpoints exposed for the Hexapod.
 """
 from webserver import gc, app, logging
@@ -66,7 +66,6 @@ async def pause(request):
     POST:
         An empty body
     """
-
     request.app.hexapod.pause = True
 
 @app.route('/run', methods=["POST"])
@@ -77,7 +76,6 @@ async def run(request):
     POST:
         An empty body
     """
-
     request.app.hexapod.pause = False
 
 @app.route('/trim', methods=["GET", "POST"])

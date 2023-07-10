@@ -1,2 +1,0 @@
-# This is the venv requirements for developing the device web interface locally
-bottle

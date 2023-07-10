@@ -66,7 +66,7 @@ flash_bin: $(MPBIN)
 	chip=$(CHIP); \
 	if [[ "$$chip" = "ESP8266" ]]; then \
 		$(ESPTOOL) --port $(DEVICE_PORT) --baud 460800 write_flash --flash_size=detect 0 $(MPBIN_ESP8266); \
-	elif [[ "$$chip" == "ESP32" ]]; then \
+	elif [[ "$$chip" == "ESP32" || "$$chip" == "ESP32-S2" ]]; then \
 		$(ESPTOOL) --port $(DEVICE_PORT) --baud 460800 write_flash -z 0x1000 $(MPBIN_ESP32); \
 	else \
 		echo "Unknown chip: $$chip"; \
@@ -86,6 +86,14 @@ MPY_SRC = boot.py \
 		  hexapod_api.py \
 		  version.py \
 		  lib/wemosD1_maps.py \
+		  led.py \
+		  map_to.py \
+		  servo.py \
+		  microdot_asyncio.py \
+		  microdot.py \
+		  microdot_cors.py \
+		  ulogging.py \
+		  wifi_manager.py \
 
 
 # The expected .mpy files for each .py above
@@ -147,11 +155,11 @@ MP_SRC_MODULES = \
 MP_SRC_MOD_SYMLINKS = $(patsubst %.py,$(MP_SRC_PORT_DIR)/modules/%.py,$(notdir $(MP_SRC_MODULES)))
 
 # These are any static files we need to upload
-STATIC_SRC = 
-		# static/index.html \
-		#  static/style.css \
-		#  static/app.js \
-		#  static/ajax.js
+STATIC_SRC = \
+		 static/index.html \
+		 static/style.css \
+		 static/app.js \
+		 static/ajax.js
 
 # We will minimise them before upload, so work out the minimized name
 STATICS_MIN = $(patsubst %,%.min,$(wildcard $(STATIC_SRC)))
@@ -179,6 +187,19 @@ build: $(MPYS) $(STATICS_MIN)
 clean:
 	@rm -vf $(MPYS)
 	@rm -rf $(FW_DIR)
+
+# For devices with enough memory, like the ESP32 for eg., we do not need to
+# freeze the MP_SRC_MODULES into the MicroPython firmware. This target will
+# create symlinks for each of these modules in the local dir which will then be
+# uploaded directly to the device. See the clean_local_modules to remove these
+# again.
+local_modules:
+	@echo Linking all required modules for local inclusion...
+	@for m in $(realpath $(MP_SRC_MODULES)); do ln -vsf $$m; done
+
+clean_local_modules:
+	@echo Removing locally linked modules...
+	@for m in $(notdir $(MP_SRC_MODULES)); do if [[ -L $$m ]]; then rm -fv $$m; else echo "Not a symlink: $$m"; fi; done
 
 clean_pyboard:
 	$(RS) rm -rf /pyboard/*

@@ -2,7 +2,7 @@
 General config file
 """
 from version import VERSION
-import lib.wemosD1_maps as D1_map
+#import lib.wemosD1_maps as D1_map
 import ujson
 
 # This is the file name to use for storing the persisted config values.
@@ -13,30 +13,15 @@ conf = {
     #'debug': False,
     'debug': True,
 
-    # The pins for the LEFT, MID and RIGHT servos
-    'pins': [D1_map.D5, D1_map.D6, D1_map.D7],
+    # The onboard LED pin
+    # NOTE on the Wemos D1 the LED is connected to the high side, so we pass it
+    #   as a negative pin number to invert the on/off state.
+    #'led_pin': -D1_map.LED,
+    'led_pin': 15,    # S2 Mini
 
-    # The servo pins - these are the actual GPIO pin numbers
-    'servo': {
-        'left': {
-            'pin': D1_map.D5,
-            'trim': 0,
-            'amplitude': 30,
-            'phase_shift': 0,
-        },
-        'mid': {
-            'pin': D1_map.D6,
-            'trim': 5,
-            'amplitude': 10,
-            'phase_shift': 90,
-        },
-        'right': {
-            'pin': D1_map.D7,
-            'trim': 0,
-            'amplitude': 30,
-            'phase_shift': 0,
-        },
-    },
+    # The pins for the LEFT, MID and RIGHT servos
+    #'pins': [D1_map.D5, D1_map.D6, D1_map.D7],
+    'pins': [16, 18, 33],  # S2 Mini
 
     # The period is the same for all servos
     'period': 2000,

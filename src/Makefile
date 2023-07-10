@@ -154,19 +154,19 @@ MP_SRC_MODULES = \
 # want to freeze.
 MP_SRC_MOD_SYMLINKS = $(patsubst %.py,$(MP_SRC_PORT_DIR)/modules/%.py,$(notdir $(MP_SRC_MODULES)))
 
-# These are any static files we need to upload
-STATIC_SRC = \
+# These are any static files we need to minify and upload
+STATIC_SRC_MINIFY = \
 		 static/index.html \
 		 static/style.css \
 		 static/app.js \
 		 static/ajax.js
 
 # We will minimise them before upload, so work out the minimized name
-STATICS_MIN = $(patsubst %,%.min,$(wildcard $(STATIC_SRC)))
+STATICS_MIN = $(patsubst %,%.min,$(wildcard $(STATIC_SRC_MINIFY)))
 
 # This is for the minified versions of the static files.
 # We minimise them and leave them with a .min extension alongside the original,
-# and then copy the minified version to to the firmware dir for upload, but
+# and then copy the minified version to the firmware dir for upload, but
 # without the .min extension. We also gzip compress all these static files to
 # save memory when we serve these later.
 #
@@ -181,12 +181,32 @@ STATICS_MIN = $(patsubst %,%.min,$(wildcard $(STATIC_SRC)))
 	@# Copy gziped to firmware dir
 	gzip -9 -c $@ > $(FW_DIR)/$<
 
-build: $(MPYS) $(STATICS_MIN)
+# These are static images we want to upload. They must be in the static dir.
+# The only static images files types supported currently is .png and .jpg
+STATIC_IMG = \
+			static/favicon_smaller.png \
+
+
+# These are the targets in firmware/static made from the list in STATIC_IMG to
+# be used as dependencies for images to be copied.
+ALL_IMG = $(addprefix firmware/,$(STATIC_IMG))
+
+# Rule to copy PNGs from static to firmware dir
+firmware/static/%.png: static/%.png
+	@cp -vf $< $@
+
+# Rule to copy JPGs from static to firmware dir
+firmware/static/%.jpg: static/%.jpg
+	@cp -vf $< $@
+
+
+build: $(MPYS) $(STATICS_MIN) $(ALL_IMG)
 	@echo Building...
 
 clean:
 	@rm -vf $(MPYS)
-	@rm -rf $(FW_DIR)
+	@rm -vrf $(FW_DIR)
+	@rm -vf static/*.min
 
 # For devices with enough memory, like the ESP32 for eg., we do not need to
 # freeze the MP_SRC_MODULES into the MicroPython firmware. This target will
@@ -226,6 +246,7 @@ conf:
 	@echo MicroPython Source dir: $(MP_SRC_DIR)
 	@echo MicroPython Modules to symlink: $(MP_SRC_MODULES)
 	@echo MicroPython Modules symlink files: $(MP_SRC_MOD_SYMLINKS)
+	@echo Minified static files: $(STATICS_MIN)
 
 repl:
 	$(RS) repl

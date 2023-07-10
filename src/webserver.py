@@ -18,6 +18,13 @@ import ulogging as logging
 app = Microdot()
 CORS(app, allowed_origins='*', allow_credentials=True)
 
+# By default the static files will be gzipped when being served from the MCU,
+# but when running from local for testing or rapid development, this will not
+# be the case. When running locally via the simulator, the main startup code
+# will set this to False to ensure the correct headers are sent to the browser
+# for static files.
+GZIPPED_STATIC = True
+
 def staticFile(path, content_type=None, gzipped=True):
     """
     General function returning static files and ensuring the content type is
@@ -56,7 +63,7 @@ async def index(request):
     # pylint: disable=unused-argument
     gc.collect()
     logging.debug("Web request: index")
-    return staticFile('static/index.html')
+    return staticFile('static/index.html', gzipped=GZIPPED_STATIC)
 
 @app.route('/static/<stat_file>')
 async def static(request, stat_file):
@@ -65,8 +72,14 @@ async def static(request, stat_file):
     """
     # pylint: disable=unused-argument
     logging.debug("Web request: static file: %s", stat_file)
+    # Images are never gzipped
+    if stat_file.endswith('.png') or stat_file.endswith('.jpg'):
+        gzipped = False
+    else:
+        gzipped = GZIPPED_STATIC
+
     gc.collect()
-    return staticFile(f'static/{stat_file}')
+    return staticFile(f'static/{stat_file}', gzipped=gzipped)
 
 async def runserver(host='0.0.0.0', port=80, debug=True):
     """

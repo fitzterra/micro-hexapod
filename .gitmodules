@@ -10,3 +10,6 @@
 [submodule "submodules/wifi-manager"]
 	path = submodules/wifi-manager
 	url = git@gitlab.gaul.za:gaulnet/micropython-wifi-manager.git
+[submodule "submodules/hcsr04"]
+	path = submodules/hcsr04
+	url = https://github.com/rsc1975/micropython-hcsr04.git

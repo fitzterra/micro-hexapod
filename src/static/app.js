@@ -494,14 +494,19 @@ function wsController() {
     let timer = null;
 
     // Incoming message handler
+    // Messages looks like:
+    //   action[:args.....]
     ws.addEventListener('message', ev => {
         console.log('[WS]:Receive:' + ev.data);
 
-        let dat = JSON.parse(ev.data);
+        // Split on colons so we can get the and optional args separately
+        let args = ev.data.split(':');
+        // Get the action out, leaving any optional args
+        let action = args.shift()
 
         // A ping?
-        if (dat.ping !== undefined) {
-            ws.send(JSON.stringify({"pong": 1}));
+        if (action === 'ping') {
+            ws.send("pong");
             return;
         }
         // An obstacle distance?

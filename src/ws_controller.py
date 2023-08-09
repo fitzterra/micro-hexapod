@@ -1,7 +1,6 @@
 """
 Controllers that communicate of the web socket established from the browser.
 """
-
 import uasyncio
 import ulogging as logging
 
@@ -79,16 +78,28 @@ async def obstacleReporter(hexapod, wsock, interval=1000):
         wsock (socket): The open websocket instance
         interval (int): Interval between obstacle checks in milliseconds
     """
+    dist = hexapod.obstacle
+    # Not configured?
+    if dist == -1:
+        logging.error("Obstacle monitor not setup up. Exiting monitor.")
+        return
 
+    has_cleared = True
     while True:
         dist = hexapod.obstacle
-        # Not configured?
-        if dist == -1:
-            logging.error("Obstacle monitor not setup up. Exiting monitor.")
-            break
         # Obstacle?
         if dist is not None:
             # Send obstacle info
-            await wsock.send('{"obs": %f}' % dist)
+            await wsock.send(f'obst:{dist}')
+            # Indicate that we have send a cleared message once the obstacle is
+            # cleared later.
+            has_cleared = False
+        elif not has_cleared:
+            # No obstacle detected, but we have also not let the client know
+            # that it is now cleared. Do it now
+            await wsock.send('obst:clear')
+            # We only want to send the cleared message once, so set the cleared
+            # flag
+            has_cleared = True
 
         await uasyncio.sleep_ms(interval)

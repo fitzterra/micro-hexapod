@@ -466,7 +466,7 @@ function updateObstacleDist(dist) {
     let obst_elem = document.querySelector('div.steer div.grid-item.obst');
     let dist_elem = obst_elem.querySelector('div.dist');
 
-    if (dist === null) {
+    if (dist === 'clear') {
         obst_elem.style.display = "none";
         return;
     }
@@ -510,22 +510,9 @@ function wsController() {
             return;
         }
         // An obstacle distance?
-        if (dat.obs !== undefined) {
+        if (action === 'obst') {
             // Update the visual indicator, showing it if it is hidden.
-            updateObstacleDist(dat.obs);
-            // If we had a previous timer set, clear it now.
-            if (timer !== null) {
-                clearTimeout(timer);
-                timer = null;
-            }
-            // Set a new timer to clear the indicator if we do not receive a
-            // new update within this timeout period.
-            timer = setTimeout(
-                () => {
-                    // We clear the indicator by sending it null distance.
-                    updateObstacleDist(null);
-                }, 3000  // Clear after 3 secs
-            );
+            updateObstacleDist(args[0]);
             return;
         }
     });

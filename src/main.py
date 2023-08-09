@@ -1,11 +1,11 @@
 """
 Main runtime
 """
+import sys
 import gc
 import uasyncio
 import ulogging as logging
-from led import LED
-#from wemosD1_maps import LED as LED_PIN
+from lib.led import LED
 from hexapod import Hexapod
 from config import conf
 
@@ -13,7 +13,7 @@ def netCon():
     """
     Manages the network connecting on startup.
     """
-    from wifi_manager import connSetup
+    from lib.wifi_manager import connSetup
 
     # Connect to WiFi. This will only return if the connection was successful.
     # If not, it will setup up a local AP (see AP_ESSID and AP_PASSWD in
@@ -28,11 +28,16 @@ def netCon():
     gc.collect()
     logging.info("Mem free after: %s", gc.mem_free())
 
-def _handleException(loop, context):
+def _handleException(_, context):
     """
     Global uasyncio exception handler.
     """
-    logging.error("Exception: %s", context)
+    err_msg = context.get("exception", context['message'])
+    logging.error("Exception: %s", err_msg)
+    # We also print detailed exception info. It does not look like it is easy
+    # to get this exception info into a string to add to the logging, so we do
+    # the next best thing.
+    sys.print_exception(context['exception']) #pylint: disable=no-member
 
 
 if __name__ == "__main__":
@@ -55,7 +60,7 @@ if __name__ == "__main__":
 
     # Create the hexapod instance.
     logging.info("Setting up Hexapod.")
-    hexapod = Hexapod(conf['pins'])
+    hexapod = Hexapod(conf['pins'], conf['echo_sense'])
 
     if conf['web_app']['enabled']:
         from hexapod_api import runserver, app as webapp

@@ -1,4 +1,3 @@
 firmware/
 *python*.bin
 static/*.min
-netconfig.py

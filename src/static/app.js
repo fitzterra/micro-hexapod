@@ -455,6 +455,82 @@ function sliderChange(event, measure) {
 }
 
 /**
+ * Updates the obstacle distance indicator with a new distance value
+ *
+ * Args:
+ *  dist (float): The distance measurement in mm. If null, then the distance
+ *      indicator is hidden.
+ **/
+function updateObstacleDist(dist) {
+    console.log("Updatinbg obtacle distance:", dist);
+    let obst_elem = document.querySelector('div.steer div.grid-item.obst');
+    let dist_elem = obst_elem.querySelector('div.dist');
+
+    if (dist === null) {
+        obst_elem.style.display = "none";
+        return;
+    }
+
+    // Make sure it's visibale in case it was hidden before.
+    obst_elem.style.display = "block";
+    dist_elem.textContent = Number(dist).toFixed(1);
+}
+
+/***
+ * Websocket controller.
+ *
+ * Creates the websocket connection and sets up all event listeners and
+ * updaters to react to messages from the socket.
+ ***/
+function wsController() {
+    // Make the connection
+    const ws = new WebSocket('ws://' + location.host + '/ws');
+    console.log("Websocket connected:", ws);
+
+    // Will be used for setting a timeout for when we receive obstacle distance
+    // updates. On receiving distance updates, we will start displaying them,
+    // but once we stop receiving them, we want to hide the obstacle distance
+    // display after a few seconds. This timer will do that.
+    let timer = null;
+
+    // Incoming message handler
+    ws.addEventListener('message', ev => {
+        console.log('[WS]:Receive:' + ev.data);
+
+        let dat = JSON.parse(ev.data);
+
+        // A ping?
+        if (dat.ping !== undefined) {
+            ws.send(JSON.stringify({"pong": 1}));
+            return;
+        }
+        // An obstacle distance?
+        if (dat.obs !== undefined) {
+            // Update the visual indicator, showing it if it is hidden.
+            updateObstacleDist(dat.obs);
+            // If we had a previous timer set, clear it now.
+            if (timer !== null) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            // Set a new timer to clear the indicator if we do not receive a
+            // new update within this timeout period.
+            timer = setTimeout(
+                () => {
+                    // We clear the indicator by sending it null distance.
+                    updateObstacleDist(null);
+                }, 3000  // Clear after 3 secs
+            );
+            return;
+        }
+    });
+
+    ws.addEventListener('close', ev => {
+        console.log('[WS]:Closed');
+    });
+}
+
+/**
  * Tests if the API URL (base_url) is valid by calling the /mem endpoint.
  *
  * It returns a promise where .then can be used to test for true, or an error
@@ -490,8 +566,7 @@ function testAPIURL() {
  **/
 function main() {
     // Attach all event listeners to the input range sliders so we can react on
-    // changes and to show a nice little bubble to help you find the right
-    // value to set it to.
+    // changes.
     attachRangeSliderEvents();
 
     // Preset the API base URL setting from base_url
@@ -515,6 +590,10 @@ function main() {
                 getTrimSettings();
                 // Update the UI
                 updateControlUI();
+
+                // Set up the Websocket controller
+                wsController();
+
             } else {
                 popupMessage(`The API URL [${base_url}] is invalid. Please fix before continuing.`, type='err')
                 // Simulate a click of the settings nav item to open that section by default

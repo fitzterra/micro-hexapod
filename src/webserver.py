@@ -5,8 +5,8 @@ This module instantiates the base webserver app and all static file serving.
 """
 import gc
 
-from microdot_asyncio import Microdot, send_file
-from microdot_cors import CORS
+from lib.microdot_asyncio import Microdot, send_file
+from lib.microdot_cors import CORS
 
 import ulogging as logging
 

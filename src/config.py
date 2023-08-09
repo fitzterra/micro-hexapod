@@ -2,7 +2,6 @@
 General config file
 """
 from version import VERSION
-#import lib.wemosD1_maps as D1_map
 import ujson
 
 # This is the file name to use for storing the persisted config values.
@@ -30,6 +29,13 @@ conf = {
     # how far the legs moves per cycle (in degrees). The hexapod class will
     # have a min and max stroke that will clip this setting if out of bounds.
     'stroke': 30,
+
+    # If and HCSR04 Ultrasonic Distance sensor is connected, this is where we
+    # configure it. This value is either None for no sensor, or else a
+    # 3 element list as: [trigger_pin, echo_pin, max_range]
+    # See the HCSR04 class for details on why to keep the max_range as short as
+    # possible in an asyncio app.
+    'echo_sense': [37, 35, 300],
 
     # Web app
     'web_app': {

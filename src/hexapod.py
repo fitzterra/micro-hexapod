@@ -3,8 +3,8 @@ Hexapod controller.
 """
 import uasyncio
 import ulogging as logging
-from servo import ServoOscillator
-from config import conf, getByDotKey, persist
+from lib.servo import ServoOscillator
+from lib.hcsr04 import HCSR04
 
 # Indexes into 3 element arrays representing the three servos. These will
 # always be in the order LEFT, MID, RIGHT
@@ -15,6 +15,12 @@ FWD = [0, 90, 0]     # Walk forward
 REV = [90, 0, 90]    # Walk backwards
 ROTR = [0, 90, 180]   # Turn to the right on the spot in a forward direction
 ROTL = [180, 90, 0]   # Turn to the left on the spot in a forward direction
+
+# These are defaults for the obstacle sensor
+# The number of milliseconds to wait between obstacle detection samples
+OBS_SAMPLE_DELAY = 10
+# The size of the moving average sample window for averaging obstacle samples
+OBS_SAMPLE_WINDOW = 20
 
 def clamp(val, vmin, vmax):
     """
@@ -37,6 +43,8 @@ class Hexapod:
     """
     Controller for the hexapod.
     """
+    #pylint: disable=too-many-instance-attributes
+
     # Min an max oscillation period (time to complete on oscillation) in
     # milliseconds
     PERIOD_MAX = 3000   # Slow
@@ -65,13 +73,16 @@ class Hexapod:
     # The file to store trim settings in for persistence.
     TRIM_FILE = 'settings_trim.saved'
 
-    def __init__(self, pins, setup=None):
+    def __init__(self, pins, sense=None, setup=None):
         """
         Instance initialiser.
 
         Args:
             pins (list): a list of IO pins the left, mid and right (in that
                 order) servos are connected to.
+            sense (list): An optional config for an HCSR04 Ultrasonic Distance
+                sensor. If not None, if should be a list as follows:
+                [trigger_pin, echo_pin, max_range]
             setup (dict): Optional setup config dictionary to override any
                 default setup values. Format:
                 {
@@ -105,6 +116,10 @@ class Hexapod:
         self._getSavedTrim()
         # Create the oscillators
         self._setOscillators()
+        # Will we set by _setupObstacleSensor if an HCSR04 config is supplied
+        # in the sense argument
+        self._sense = None
+        self._setupObstacleSensor(sense)
 
     def _saveTrim(self):
         """
@@ -126,7 +141,7 @@ class Hexapod:
                     self.TRIM_FILE,
                     self._trim
                 )
-        except Exception as exc:
+        except OSError as exc:
             logging.error("%s: Error saving trim values: %s", self.LOG_PREFIX, exc)
 
     def _getSavedTrim(self):
@@ -157,7 +172,7 @@ class Hexapod:
                     return
                 # All good, replace the current trim settings
                 self._trim = trim_vals
-        except Exception as exc:
+        except OSError as exc:
             logging.error("%s: Error restoring saved trim values: %s", self.LOG_PREFIX, exc)
 
     def _setOscillators(self):
@@ -241,6 +256,33 @@ class Hexapod:
             # Amplitudes may be different depending on the steering angle, so
             # we set from the calculated values.
             servo.amplitude = amplitudes[idx]
+
+    def _setupObstacleSensor(self, conf):
+        """
+        Sets up an HCSR04 Ultrasonic Sensor connected to sense obstacles.
+
+        Args:
+            conf (None/list): This is the sense argument received by the
+                __init__ constructor. See the docstring there for more details.
+        """
+        # Nothing to do if there is no config
+        if conf is None:
+            return
+
+        logging.info("Settings up obstacle sensor...")
+
+        # We expect conf to be a list: [trigger_pin, echo_pin, max_range]
+        # which is the exact args expected by the HCSR04 class.
+        self._sense = HCSR04(*conf)
+
+        # Create a task to continuously check for obstacles and update the
+        # internal sensor moving average.
+        uasyncio.create_task(
+            self._sense.monitor(
+                sample_delay=OBS_SAMPLE_DELAY,
+                window=OBS_SAMPLE_WINDOW
+            )
+        )
 
     @property
     def params(self):
@@ -522,6 +564,19 @@ class Hexapod:
         # although it also does some other unnecessary stuff. Refactoring
         # _updateOscillators could help in future.
         self._updateOscillators()
+
+    @property
+    def obstacle(self):
+        """
+        Property to check if there is an obstacle, and if so, how far ahead.
+
+        Returns:
+            -1 if no obstacle distance sensor is configured
+            None if no obstacle is currently detected
+            A value between 0 and the max sense range if an obstacle is
+            detected
+        """
+        return -1 if self._sense is None else self._sense.avg()
 
     async def run(self):
         """

@@ -17,7 +17,7 @@ class Pin:
     IN = 1
     OUT = 0
 
-    def __init__(self, pin, value=None):
+    def __init__(self, pin, mode=IN, pull=0, value=None):
         self._value = value if value is not None else 0
         self._pin = pin
 
@@ -49,3 +49,12 @@ class PWM:
         if val is not None:
             self._duty = val
         return self._duty
+
+def time_pulse_us(pin, state, timeout):
+    """
+    This is only a basic definition of the same function.
+
+    It will always return timeout
+    """
+    # pylint: disable=unused-argument
+    return timeout

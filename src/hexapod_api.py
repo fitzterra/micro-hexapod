@@ -6,6 +6,8 @@ main app with all the API endpoints exposed for the Hexapod.
 """
 from webserver import gc, app, logging
 from webserver import runserver # Convenience import for main @pylint: disable=unused-import
+from microdot_asyncio_websocket import with_websocket
+from ws_controller import uasyncio, ping, obstacleReporter
 from version import VERSION
 
 #pylint: disable=broad-except
@@ -312,3 +314,29 @@ async def version(_):
             {"version": 'major.minor.patch'}
     """
     return {"version": VERSION}
+
+@app.route('/ws')
+@with_websocket
+async def websock(request, ws):
+    """
+    Websocket handler.
+
+    This handler is called as soon as the browser opens the /ws path to
+    establish the websocket connection.
+
+    When this happens, this function will be run as coro until the connection
+    is closed.
+
+    Args:
+        _ : The request object. Unused in this case
+        ws (socket): The websocket instance.
+    """
+    hexapod = request.app.hexapod
+
+    # Create the tasks
+    uasyncio.create_task(ping(ws))
+    uasyncio.create_task(obstacleReporter(hexapod, ws))
+
+    while True:
+        data = await ws.receive()
+        logging.info(f"[WS]Received: {data}")

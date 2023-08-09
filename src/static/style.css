@@ -139,7 +139,7 @@ div.steer {
     grid-template-columns: repeat(5, 3rem);
     grid-template-rows: repeat(6, 3rem);
     grid-template-areas:
-        ". . fwd . ."
+        ". . fwd . obst"
         ". rotl run rotr ."
         ". cntr rev . ."
         "angle angle angle angle angle"
@@ -152,6 +152,20 @@ div.steer .grid-item {
     background: #252525;
 }
 
+div.steer .obst {
+    grid-area: obst;
+    display: none;
+    margin: 10%;
+    border-radius: 50%;
+    text-align: center;
+    background-color: rgba(255, 0, 0, 0.4);
+}
+div.steer .obst div.dist {
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: bold;
+}
 div.steer .fwd {
     grid-area: fwd;
 }

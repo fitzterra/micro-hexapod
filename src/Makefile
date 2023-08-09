@@ -78,6 +78,10 @@ flash_bin: $(MPBIN)
 ####
 # This is for the main application
 ####
+# NOTE: Some of these are dependencies for other modules:
+# 	* lib/moving_average.py is required by hcsr04 for the asyncio monitor
+# 	* lib/map_to.py is required by lib/servo.py
+# coro
 MPY_SRC = boot.py \
 		  main.py \
 		  hexapod.py \
@@ -85,15 +89,19 @@ MPY_SRC = boot.py \
 		  webserver.py \
 		  hexapod_api.py \
 		  version.py \
-		  lib/wemosD1_maps.py \
-		  led.py \
-		  map_to.py \
-		  servo.py \
-		  microdot_asyncio.py \
-		  microdot.py \
-		  microdot_cors.py \
-		  ulogging.py \
-		  wifi_manager.py \
+		  ws_controller.py \
+		  lib/led.py \
+		  lib/map_to.py \
+		  lib/servo.py \
+		  lib/microdot.py \
+		  lib/microdot_cors.py \
+		  lib/microdot_websocket.py \
+		  lib/microdot_asyncio.py \
+		  lib/microdot_asyncio_websocket.py \
+		  lib/ulogging.py \
+		  lib/wifi_manager.py \
+		  lib/moving_average.py \
+		  lib/hcsr04.py
 
 
 # The expected .mpy files for each .py above
@@ -137,8 +145,6 @@ MP_SRC_PORT_DIR = $(MP_SRC_DIR)/ports/esp8266
 # firmware locally. This is especially useful for ESP8266 that has limit
 # runtime storage
 MP_SRC_MODULES = \
-    ../submodules/micropython-tools/led.py \
-    ../submodules/micropython-tools/map_to.py \
     ../submodules/micropython-tools/servo.py \
     ../submodules/microdot/src/microdot_asyncio.py \
     ../submodules/microdot/src/microdot.py \

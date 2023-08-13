@@ -120,7 +120,7 @@ div.sect.settings div.trim div.col label input {
     width: 2.5rem;
     margin: auto;
 }
-/* For inputs outside of the min/max values or non integer */
+/* For inputs outside of the min/max values or non integer /
 div.sect.settings div.trim div.col label input:invalid {
     background-color: #fd7b7b;
 }

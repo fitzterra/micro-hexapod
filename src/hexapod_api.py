@@ -292,28 +292,71 @@ async def stroke(request):
 
     return {"stroke": request.app.hexapod.stroke}
 
-@app.route('/mem')
-async def memInfo(_):
+def handleTrim(val, hexapod):
     """
-    Returns the current memory status.
+    Handles a request to query or set the servo trim values.
 
-    GET:
-        Returns:
-            {"alloc": int, "free": int}
-    """
-    # This gc has these members @pylint: disable=no-member
-    return {"alloc": gc.mem_alloc(), "free": gc.mem_free()}
+    For just getting the current trim values, val will be None, otherwise it is
+    expected to be a string like:
+        left:mid:right[:center]
 
-@app.route('/version')
-async def version(_):
-    """
-    Returns the current app version
+    ...where each field is a trim value as integer angle, and the optional center
+    field is either "true" or "false".
 
-    GET:
-        Returns:
-            {"version": 'major.minor.patch'}
+    If this is all is good, this function will set the servo trims and
+    optionally center the them, unless val was None, in which case only the
+    current trim values will be returned.
+
+    Args:
+        val (str|None): See above
+        hexapod (inst): Instance of the hexapod
+
+    Returns:
+        On successful setting the trims or when only requesting the current
+        values, returns a string:
+            "left:mid:right"
+
+        On error, returns a string:
+            "err:The error message"
     """
-    return {"version": VERSION}
+    # Preset the response so we can test if was already set to an error later
+    resp = None
+
+    # Needs to set trims?
+    if val is not None:
+        logging.info("Setting trims: %s", val)
+        # Split on colons and check for the correct number of items
+        vals = val.split(':')
+        if len(vals) not in [3, 4]:
+            return f"err:Invalid trim values: {val}"
+
+        # Pop the center element off if present, else default to false
+        cent = vals.pop() if len(vals) == 4 else 'false'
+        if cent not in ['true', 'false']:
+            return f"err:Invalid trim center value: {cent}"
+        # Make the center value a boolean
+        cent = cent == 'true'
+
+        # Try convert the trims to ints
+        try:
+            vals = [int(v) for v in vals]
+        except ValueError:
+            return f"err:One or more trim values are not integers: {vals}"
+        # Set the trims
+        hexapod.trim = vals
+        # Do we also center?
+        if cent:
+            hexapod.centerServos(True)
+    else:
+        logging.info("Requesting current trim settings.")
+
+    # Now set a response if we have not done so already
+    if resp is None:
+        # Need to convert the integers to strings before joining with a
+        # string
+        resp = ":".join([str(t) for t in hexapod.trim])
+
+    return resp
 
 @app.route('/ws')
 @with_websocket
@@ -338,5 +381,33 @@ async def websock(request, ws):
     uasyncio.create_task(obstacleReporter(hexapod, ws))
 
     while True:
+        # Wait for a message and then split iton the first colon into action
+        # and arguments
         data = await ws.receive()
-        logging.info(f"[WS]Received: {data}")
+        data = data.split(':', 1)
+        # All actions do not always have arguments, so work out what the action
+        # and args are. No args will result in args == None
+        if len(data) == 1:
+            action = data[0]
+            args = None
+        else:
+            action, args = data
+        logging.debug(f"[WS]: Received: action: {action}, args: {args}")
+
+        # What to do?
+        response = None
+        if action == 'version':
+            response = f"version:{VERSION}"
+        if action == 'memory':
+            response = f"memory:{gc.mem_alloc()}:{gc.mem_free()}"
+        if action == 'pong':
+            logging.info("Received pong...")
+        if action == 'trim':
+            logging.info(f"Received trim:{args}...")
+            response = f"trim:{handleTrim(args, hexapod)}"
+        else:
+            logging.info(f"Unhandled action: {action}")
+
+        # Any response?
+        if response:
+            await ws.send(response)

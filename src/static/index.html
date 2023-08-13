@@ -29,10 +29,10 @@
             </dialog>
 
             <div class="sect settings">
-                <label class="base_url">
-                    API Base URL:
-                    <input type="text" name="base_url" oninput="manageBaseURL(event);">
-                    <button disabled onclick="manageBaseURL(event);">Test</button>
+                <label class="ws_url">
+                    WebSocket URL:
+                    <input type="text" name="ws_url" oninput="manageWebSockURL(event);">
+                    <button disabled onclick="manageWebSockURL(event);">Test</button>
                 </label>
                 <div class="trim">
                     <div class="main_label">Trim:</div>
@@ -57,7 +57,7 @@
                                 onchange="trimChanged(event);">
                         </label>
                     </div>
-                    <button disabled onclick="updateTrims(event);">Update</button>
+                    <button disabled onclick="setTrims(event);">Set</button>
                 </div>
             </div>
 

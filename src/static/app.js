@@ -54,11 +54,13 @@ window.pubSub = (function(){
     };
 })();
 
-// This is the base URL to use depending on where we run from.
-// We will try fetch it from localstorage, and default it to the empty string
-// if not stored.
-let base_url = localStorage.getItem('base_url') || '';
+// This is the websocket URL to use depending on where we run from.
+// We will try fetch it from localstorage, and default it to the location.host
+// with '/ws/' appended as path if not stored.
+let ws_url = localStorage.getItem('ws_url') || 'ws://' + location.host + '/ws';
 
+// This will be the global websocket managed by the wsConnect function
+let ws = null;
 
 /**
  * Opens the modal dialog as the message type and displays the message
@@ -79,10 +81,10 @@ function popupMessage(msg, type=null, button="OK") {
 }
 
 /**
- * On input event for the API base URL input under the settings, as well as the
+ * On input event for the WebSocket URL input under the settings, as well as the
  * click event for the Test button in the same place.
  **/
-function manageBaseURL(event) {
+function manageWebSockURL(event) {
     // The event is either click for the test button, of input for the input
     // field.
     switch (event.type) {
@@ -101,40 +103,19 @@ function manageBaseURL(event) {
             // the test button in the DOM.
             let url_val = event.target.previousElementSibling.value.trim()
 
-            // If empty, then we will use the site base address, else it has to start
-            // with http(s):// followed by some host name
-            if (! url_val.match(/^$|^https*:\/\/\w+/g)) {
+           // Do very basic validation for the protocol and hostname
+            if (! url_val.match(/^wss*:\/\/\w+/g)) {
                 popupMessage(
-                    "URL must be empty, or start with <var>http(s)://</var> " +
-                    "followed by a host name and optional port.",
+                    "URL must start with <var>ws(s)://</var> " +
+                    "followed by a host name and optional port and path.",
                     "err"
                 );
                 return;
             }
 
-            // Remove trailing slash if present
-            url_val = url_val.replace(/\/*$/, '');  /* */
-
-            // To test, we call the /mem endpoint using the new base URL value
-            ajax({url: `${url_val}/mem`}).then(
-                // Success
-                function(res) {
-                    popupMessage("It verks!!");
-                    // Set the global new base_url and also save it to
-                    // local storage.
-                    base_url = url_val;
-                    localStorage.setItem("base_url", url_val);
-                    // Also get the trim settings from the new API host
-                    getTrimSettings();
-                    // ...and update the control UI
-                    updateControlUI();
-                },
-                // Error
-                function(err) {
-                    console.log("Invalid URL:<br>", err);
-                    popupMessage(err, "err");
-                }
-            );
+            // Save the URL and kick off a connect attempt.
+            localStorage.setItem("ws_url", url_val);
+            wsConnect();
             break;
     }
 }
@@ -210,30 +191,31 @@ function steerEvent(event, dir) {
 }
 
 /**
- * Called to fetch and update the app version
+ * Updates the version display
+ *
+ * Args:
+ *  version (str): The version as a string
  ***/
-function updateVersion() {
+function updateVersion(version) {
     // Get the version element
-    let version = document.querySelector("div.app_version span");
+    let elem = document.querySelector("div.app_version span");
+    elem.textContent = version
+}
 
-    // set the call options
-    let opts = {
-        'url': `${base_url}/version`,
-        'method': 'GET',
-        'contentType': 'application/json',
-    };
-    // Do it
-    ajax(opts).then(
-        // Success
-        function(res) {
-            console.log("Vesion:", res.responseJSON);
-            version.textContent = res.responseJSON.version;
-        },
-        // Error
-        function(err) {
-            console.log("Version error: ", err);
-        }
-    );
+/**
+ * Updates the memory display for the remote
+ *
+ * Args:
+ *  mem (str): The memory as "allocated:free" bytes
+ ***/
+function updateMemory(mem) {
+    //TODO: Need to be implemented
+
+    mem = mem.split(':')
+    console.log(`Bot memory: allocated=${mem[0]}, free=${mem[1]}`);
+    // Get the memory element
+    //let elem = document.querySelector("div.app_version span");
+    //elem.textContent = version
 }
 
 /**
@@ -315,6 +297,8 @@ function playPauseEvent(event) {
     // Determine the new state by looking at the current button name.
     let new_state = event.target.innerText === "play_circle" ? "run" : "pause";
 
+    pubSub.publish('motion', new_state);
+
     let opts = {
         'url': `${base_url}/${new_state}`,
         'method': 'POST',
@@ -335,84 +319,77 @@ function playPauseEvent(event) {
     );
 }
 
+/*################## TRIM HANDLING #################*/
 /**
  * Gets the current trim values and updates the trim settings.
  **/
 function getTrimSettings() {
-    console.log("Getting trim settins...")
-    let opts = {
-        'url': `${base_url}/trim`,
-        'method': 'GET',
-        'contentType': 'application/json',
-    };
-
-    // Do it
-    ajax(opts).then(
-        // Success
-        function(res) {
-            const trim_settings = res.responseJSON;
-            // We assume the trim settings comes back as left, mid right, and
-            // that the trim inputs in the DOM are in the same order.
-            const trim_inputs = document.querySelectorAll("div.sect.settings div.trim input")
-            for (let i = 0; i < trim_inputs.length; i++) {
-                console.log(`Updating ${trim_inputs[i].name} from ${trim_inputs[i].value} to ${trim_settings[i]}`);
-                trim_inputs[i].value = trim_settings[i];
-            }
-        },
-        // Error
-        function(err) {
-            console.log("Error: ", err);
-        }
-    );
+    console.log("Requesting trim settings...");
+    pubSub.publish('to_bot', {action: 'trim'});
 }
 
 /**
- * Called whenever a trim setting is changed.
- * This only enables the trim settings update button.
+ * Called whenever a trim input setting is changed.
+ * This only enables the trim settings "set" button if the value is valid.
  **/
 function trimChanged(event) {
-    console.log(event);
+    // First check if the input is valid
+    if (! event.target.checkValidity()) {
+        console.log("Trim value is invalid. Disabling set button.");
+        event.target.closest("div.trim").querySelector("button").disabled = true;
+        return;
+    }
     event.target.closest("div.trim").querySelector("button").disabled = false;
 }
 
 /**
- * Called when the trim update button is pressed.
- * Reads the current triom settings, calls the API to update them, and disables
- * the button.
+ * Called when the trim set button is pressed.
+ * Reads the current trim settings and publishes a trim set message.
  **/
-function updateTrims(event) {
+function setTrims(event) {
     // First disable the update button. Any changes in trim settings will
     // enable it again
     event.target.disabled = true;
 
-    // Read the trim values
-    let trims = [];
+    // Read the trim values and construct the action argument
+    let trims = ""
     event.target.parentElement.querySelectorAll("input").forEach(
         trim => {
-            trims.push(parseInt(trim.value, 10));
+            // Do not add a separator for the first value
+            trims += (!trims ? "" : ":") + `${trim.value}`;
         }
     );
+    // We want to force centering the servos after setting trims
+    trims += ":true"
 
-    // Now we call the API to set them
-    let opts = {
-        'url': `${base_url}/trim`,
-        'method': 'POST',
-        'contentType': 'application/json',
-        'data': JSON.stringify({"trim": trims, "center": true}),
-    };
-
-    // Call the API to run or pause based on the desired new state
-    ajax(opts).then(
-        // Success
-        function(res) {
-            console.log(res);
-        },
-        // Error
-        function(err) {
-            console.log(err);
-        }
-    );
+    // Now we publish a request to set them
+    pubSub.publish('to_bot', {action: 'trim', args: trims});
 }
+
+/**
+ * Callback for when we receive trims setting on the message Q.
+ *
+ * Args:
+ *  val (str): "left:mid:right" or "err:Error message"
+ **/
+function updateTrims(val) {
+    console.log("Received trims update: ", val);
+
+    let vals;
+    let elems;
+
+    // Error?
+    if (val.startsWith("err:")) {
+        popupMessage(`Error setting trim values: ${val.replace(/^err:/,'')}.`, type='err')
+        return;
+    }
+    vals = val.split(':');
+    elems = document.querySelectorAll("div.sect.settings div.trim input");
+    for (let idx=0; idx < elems.length; idx++) {
+        elems[idx].value = vals[idx];
+    }
+}
+/*################## END: TRIM HANDLING #################*/
 
 /**
  * Called to center the servos
@@ -528,81 +505,169 @@ function updateObstacleDist(dist) {
     dist_elem.textContent = Number(dist).toFixed(1);
 }
 
-/***
- * Websocket controller.
+
+/**
+ * Called to connect the websocket.
  *
- * Creates the websocket connection and sets up all event listeners and
- * updaters to react to messages from the socket.
- ***/
-function wsController() {
-    // Make the connection
-    const ws = new WebSocket('ws://' + location.host + '/ws');
-    console.log("Websocket connected:", ws);
+ * Will publish the following connection events on the [websock] topic via
+ * the pubSub Q:
+ *   - 'connected': If successfully connected to the remote WS
+ *   - 'closed':    If the socket is closed. Also published if the
+ *                  connection attempt fails.
+ *   - 'already_conn': If already connected.
+ *
+ * Any messages arriving on the websock is expected to be in the
+ * 'action:[args...]' format as defined by the Hexapod API. Once a message
+ * arrives, the received args will be published as the message to the [action]
+ * topic.
+ **/
+function wsConnect() {
+    // Already connected?
+    if (ws) {
+        console.log('[WS]: already connected.');
+        pubSub.published('websock', 'already_conn');
+        return;
+    }
 
-    // Will be used for setting a timeout for when we receive obstacle distance
-    // updates. On receiving distance updates, we will start displaying them,
-    // but once we stop receiving them, we want to hide the obstacle distance
-    // display after a few seconds. This timer will do that.
-    let timer = null;
+    // Connect using the current host we loaded the site from.
+    ws = new WebSocket(ws_url);
 
-    // Incoming message handler
-    // Messages looks like:
-    //   action[:args.....]
-    ws.addEventListener('message', ev => {
-        console.log('[WS]:Receive:' + ev.data);
+    // When the socket is connected, we publish the 'connected' message
+    ws.onopen = function() {
+        console.log('[WS]: connected.');
+        pubSub.publish('websock', 'connected')
+        // The close event gets called both for the initial connection attempt,
+        // as well as when the connection is closed after it was opened
+        // successfully before.
+        // IN order to distinguish between the two events, we set a propery on
+        // the websocket here to indicate that the connection was established
+        // successfully. We can then check this property in the close event.
+        ws.connectSuccess = true;
+    };
 
+    // When a new message
+    ws.onmessage = function(msg) {
+        //console.log('[WS]: message:', msg);
         // Split on colons so we can get the and optional args separately
-        let args = ev.data.split(':');
+        let args = msg.data.split(':');
         // Get the action out, leaving any optional args
         let action = args.shift()
+        // Join the remaining args array with ':' again if it was split
+        args = args.join(":")
+        pubSub.publish(action, args)
+    };
 
-        // A ping?
-        if (action === 'ping') {
-            ws.send("pong");
-            return;
-        }
-        // An obstacle distance?
-        if (action === 'obst') {
-            // Update the visual indicator, showing it if it is hidden.
-            updateObstacleDist(args[0]);
-            return;
-        }
-    });
+    ws.onclose = function(evt) {
+        // See the comment in the open event for this property.
+        let connectFail = !evt.target.connectSuccess;
+        console.log(
+            "[WS]: closed. " + (connectFail ? "Connection failed" : "Connection dropped")
+        )
+        ws = null;
+        pubSub.publish('websock', 'closed:' + (connectFail ? 'fail' : 'drop'))
+    };
 
-    ws.addEventListener('close', ev => {
-        console.log('[WS]:Closed');
-    });
+    ws.onerror = function(evt) {
+        if (ws.readyState == 1) {
+            console.log(`[WS]: normal error: ${evt.type}`);
+        }
+    };
 }
 
 /**
- * Tests if the API URL (base_url) is valid by calling the /mem endpoint.
+ * Handle message received on the [to_bot] topic.
  *
- * It returns a promise where .then can be used to test for true, or an error
- * string if the URL is invalid"
+ * These are messages containing actions to send to the hexapod.
+ * The message is expected to be an object of the format:
  *
- * testAPIURL().then(
- *      res => {
- *          if (res === true) {
- *              console.log("URL is valid.");
- *          } else {
- *              console.log("URL is not valid. Error:", res);
- *          }
+ *  {
+ *     'action': "action",  // A valid hexapod action
+ *     'args': ...          // Optional args required by the action
+ *  }
  *
- *      }
- * );
+ * The action and args data will be combined in an 'action:[args...]' string
+ * and sent on the websock to the hexapod via the websocket if connected. If
+ * not connected and error will be logged to the console.
  *
+ * If args is an object, it will be converted to a JSON string on the fly
+ * before sending.
+ *
+ * Note that if args is undefined or null, no args will be sent.
  **/
-function testAPIURL() {
-    return ajax({url: `${base_url}/mem`}).then(
-        // Success
-        function(res) {
-            return(true);
-        },
-        // Error
-        function(err) {
-            return(err);
-        }
-    );
+function sendToHexapod(msg) {
+    // We must have an action property
+    if (!Object.hasOwn(msg, 'action')) {
+        console.log(
+            "Invalid message structure to send to hexapod. " +
+            "No 'action' property: ", msg
+        );
+        return;
+    }
+    // Get the action
+    dat = msg.action;
+    // Do we need to convert the args object a JSON string?
+    if (msg.args !== null && msg.args !== undefined && typeof msg.args === "object") {
+        msg.args = JSON.stringify(msg.args);
+    }
+    // Only add the args if it is not undefined
+    if (msg.args !== undefined) dat = dat + `:${msg.args}`;
+
+    // Can we send it?
+    if (!ws) {
+        console.log(
+            `Can not send message '${dat}' to hexapod because socket is ` +
+            `not currently connected.`);
+        return;
+    }
+
+    // Send it
+    ws.send(dat);
+}
+
+/**
+ * Called as soon as the connection to the hexapod API is established.
+ **/
+function remoteConnected() {
+    // The URL is valid
+    // Update the app version by requesting it from the remote
+    pubSub.publish('to_bot', {action: 'version'});
+
+    // When we're connected, the test button and WS URL input box must be
+    // disabled.
+    document.querySelector("div.settings label.ws_url input").disabled = true;
+    document.querySelector("div.settings label.ws_url button").disabled = true;
+    // Simulate a click of the control nav item to open that section by default
+    let nav_item = document.querySelector("div.nav span[data-func=control]");
+    // We need to dispatch a specific event to simulate the target being
+    // passed in
+    nav_item.dispatchEvent(new Event("click", {target: nav_item}));
+
+    // Update the trim settings
+    getTrimSettings();
+    // Update the UI
+    ////  updateControlUI();
+}
+
+/**
+ * Called whenever the remote connection is closed, or we can not set up the
+ * connection to start with.
+ **/
+function remoteDisconnected(reason) {
+    console.log(`Websock connection down. Reason: ${reason}`);
+    if (reason == "fail") {
+        popupMessage(`Unable to connect to: [${ws_url}]. Please fix and try again.`, type='err')
+    } else {
+        popupMessage(`Connection to [${ws_url}] dropped. Please try to connect again.`, type='err')
+    }
+    // When we disconnect, we need to enable the WS URL input and the Test
+    // button since these are now going to be needed.
+    document.querySelector("div.settings label.ws_url input").disabled = false;
+    document.querySelector("div.settings label.ws_url button").disabled = false;
+    // Simulate a click of the settings nav item to open that section by default
+    let nav_item = document.querySelector("div.nav span[data-func=settings]");
+    // We need to dispatch a specific event to simulate the target being
+    // passed in
+    nav_item.dispatchEvent(new Event("click", {target: nav_item}));
 }
 
 /**
@@ -614,40 +679,43 @@ function main() {
     attachRangeSliderEvents();
 
     // Preset the API base URL setting from base_url
-    document.querySelector("div.sect.settings input[name=base_url]").value = base_url;
+    document.querySelector("div.sect.settings input[name=ws_url]").value = ws_url;
 
-    // Test that the URL is valid
-    testAPIURL().then(
-        res => {
-            if (res === true) {
-                // The URL is valid
-                // Update the app version
-                updateVersion();
+    // Create a handler to send all messages destined for the hexabot via the
+    // websocket.
+    pubSub.subscribe('to_bot', sendToHexapod)
 
-                // Simulate a click of the control nav item to open that section by default
-                let nav_item = document.querySelector("div.nav span[data-func=control]");
-                // We need to dispatch a specific event to simulate the target being
-                // passed in
-                nav_item.dispatchEvent(new Event("click", {target: nav_item}));
+    // Ping handler
+    pubSub.subscribe('active', stat => {
+        if (stat === 'ping')
+            pubSub.publish('to_bot', {action: 'pong'});
+    });
+    // Updater for the version
+    pubSub.subscribe('version', updateVersion);
+    // Updater for the memory display
+    pubSub.subscribe('memory', updateMemory);
+    // Trim updater
+    pubSub.subscribe('trim', updateTrims);
 
-                // Update the trim settings
-                getTrimSettings();
-                // Update the UI
-                updateControlUI();
 
-                // Set up the Websocket controller
-                wsController();
-
-            } else {
-                popupMessage(`The API URL [${base_url}] is invalid. Please fix before continuing.`, type='err')
-                // Simulate a click of the settings nav item to open that section by default
-                let nav_item = document.querySelector("div.nav span[data-func=settings]");
-                // We need to dispatch a specific event to simulate the target being
-                // passed in
-                nav_item.dispatchEvent(new Event("click", {target: nav_item}));
-            }
+    // Monitor for websocket status
+    pubSub.subscribe('websock', stat => {
+        console.log('Websocket status: ', stat);
+        switch (stat) {
+            case 'connected':
+                remoteConnected();
+                break;
+            case 'closed:fail':
+            case 'closed:drop':
+                remoteDisconnected(stat.split(':')[1])
+                break;
+            default:
+                console.log(`No idea how to handle ${stat}`);
         }
-    );
+    });
+
+    wsConnect();
 }
 
+// Wait for the DOM to be loaded before our app starts.
 document.addEventListener("DOMContentLoaded", main);

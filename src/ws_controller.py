@@ -5,18 +5,29 @@ import uasyncio
 import ulogging as logging
 
 # Websocket actions
-# * ping
-#     >HP: responds by sending `pong`
-#     >CL: responds by sending `pong`
-# * pong
-#     >HP: no action
-#     >CL: no action
-# * run
-#     >HP: run the oscillators
-#     >CL: indicator that run state was entered
-# * stop
-#     >HP: stop the oscillators
-#     >CL: indicator that stop state was entered
+# * version:[maj.min.patch]
+#     >HP: responds by sending a `version` action with the current API version
+#     >CL: expects a version response with the current API version.
+# * active:ping|pong
+#     >HP: responds to a ping by sending `pong`
+#     >CL: responds to a ping by sending `pong`
+# * memory:[alloc:free]
+#     >HP: responds by sending the currently allocated and free memory as bytes
+#          values
+#     >CL: expects a memory response with the allocated and free values as
+#          indicated.
+# * trim:[left:mid:right:[center]]
+#     >HP: sets and saves the servo trim values if the trim values have been
+#          passed in. The center field is optional and if supplied should be
+#          'true' or 'false', defaulting to false if not supplied. If true, the
+#          servos will be centered after setting the trim values.
+#          Always responds with the current trim values.
+#     >CL: expects a response as indicated with current trim value - sans the
+#          center field. If there was an error setting the values, the args
+#          string will be "err:error message"
+# * motion:run|pause
+#     >HP: run or pause the oscillators
+#     >CL: indicator that run or pause was execute
 # * speed:int
 #     >HP: set the speed to the integer percentage argument between 0% and 100%
 #     >CL: indicator that current speed has been set to this percentage value
@@ -43,7 +54,7 @@ import ulogging as logging
 #     >HP: starts rotating left (anti-clockwise). Will automatically reset steer
 #          angle to 0% and send a `steer` action with newly set 0° angle arg
 #     >CL: indicator that rotate left was started
-# * obst:[float|clear]
+# * obst:float|clear
 #     >HP: ignored
 #     >CL: indicator that an obstacle was detected and the distance in mm as a
 #          float, or that a previous obstacle has now been clearer with an
@@ -63,7 +74,7 @@ async def ping(wsock):
     while True:
         await uasyncio.sleep(PING_DELAY)
         logging.info("Sending ping...")
-        await wsock.send('ping')
+        await wsock.send('active:ping')
 
 async def obstacleReporter(hexapod, wsock, interval=1000):
     """

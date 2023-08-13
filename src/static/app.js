@@ -1,6 +1,58 @@
 /**
  * Micro Hexapod control web interface app.
- */
+ **/
+
+/**
+ * This is a simple pub/sub bus defined on the window object to make it easy to
+ * pass messages between different parts of the UI.
+ *
+ * See here: https://davidwalsh.name/pubsub-javascript
+ * The window idea comes from here: https://dev.to/adancarrasco/implementing-pub-sub-in-javascript-3l2e
+ *
+ * Reading this makes my eyes bleed!!, but the principle is clear. JavaScript
+ * sucks!!!
+ *
+ **/
+window.pubSub = (function(){
+    let topics = {};
+
+    return {
+        subscribe: function(topic, listener) {
+            // Create the topic's object if not yet created
+            if(!Object.hasOwn(topics, topic)) {
+                //console.log("PUBSUB: Creating new topic '" + topic + "'.");
+                topics[topic] = [];
+            }
+
+            // Add the listener to queue, recording it's index for possible
+            // removal later
+            let index = topics[topic].push(listener) - 1;
+            //console.log("PUBSUB: New listener added to topic '" + topic + "': " + listener);
+
+            // Provide handle back for removal of listener just added
+            return {
+                remove: function() {
+                    //console.log("PUBSUB: Removing listener at index " + index + " from topic '" + topic + "'.");
+                    delete topics[topic][index];
+                }
+            };
+        },
+        publish: function(topic, info) {
+            // If the topic doesn't exist we simply return
+            if(!Object.hasOwn(topics, topic)) {
+                console.log("PUBSUB: Topic '" + topic + "' does not exist for publishing to.");
+                return;
+            }
+
+            //console.log("PUBSUB: Publishinhg to topic '" + topic + "': " + info);
+
+            // Cycle through topics queue and publish
+            topics[topic].forEach(function(item) {
+                item(info);
+            });
+        }
+    };
+})();
 
 // This is the base URL to use depending on where we run from.
 // We will try fetch it from localstorage, and default it to the empty string

@@ -13,7 +13,7 @@
  * sucks!!!
  *
  **/
-window.pubSub = (function(){
+window.Q = (function(){
     let topics = {};
 
     return {
@@ -297,7 +297,7 @@ function playPauseEvent(event) {
     // Determine the new state by looking at the current button name.
     let new_state = event.target.innerText === "play_circle" ? "run" : "pause";
 
-    pubSub.publish('motion', new_state);
+    Q.pub('motion', new_state);
 
     let opts = {
         'url': `${base_url}/${new_state}`,
@@ -325,7 +325,7 @@ function playPauseEvent(event) {
  **/
 function getTrimSettings() {
     console.log("Requesting trim settings...");
-    pubSub.publish('to_bot', {action: 'trim'});
+    Q.pub('to_bot', {action: 'trim'});
 }
 
 /**
@@ -363,7 +363,7 @@ function setTrims(event) {
     trims += ":true"
 
     // Now we publish a request to set them
-    pubSub.publish('to_bot', {action: 'trim', args: trims});
+    Q.pub('to_bot', {action: 'trim', args: trims});
 }
 
 /**
@@ -510,7 +510,7 @@ function updateObstacleDist(dist) {
  * Called to connect the websocket.
  *
  * Will publish the following connection events on the [websock] topic via
- * the pubSub Q:
+ * the Q Q:
  *   - 'connected': If successfully connected to the remote WS
  *   - 'closed':    If the socket is closed. Also published if the
  *                  connection attempt fails.
@@ -525,7 +525,7 @@ function wsConnect() {
     // Already connected?
     if (ws) {
         console.log('[WS]: already connected.');
-        pubSub.published('websock', 'already_conn');
+        Q.pub('websock', 'already_conn');
         return;
     }
 
@@ -535,7 +535,7 @@ function wsConnect() {
     // When the socket is connected, we publish the 'connected' message
     ws.onopen = function() {
         console.log('[WS]: connected.');
-        pubSub.publish('websock', 'connected')
+        Q.pub('websock', 'connected')
         // The close event gets called both for the initial connection attempt,
         // as well as when the connection is closed after it was opened
         // successfully before.
@@ -554,7 +554,7 @@ function wsConnect() {
         let action = args.shift()
         // Join the remaining args array with ':' again if it was split
         args = args.join(":")
-        pubSub.publish(action, args)
+        Q.pub(action, args)
     };
 
     ws.onclose = function(evt) {
@@ -564,7 +564,7 @@ function wsConnect() {
             "[WS]: closed. " + (connectFail ? "Connection failed" : "Connection dropped")
         )
         ws = null;
-        pubSub.publish('websock', 'closed:' + (connectFail ? 'fail' : 'drop'))
+        Q.pub('websock', 'closed:' + (connectFail ? 'fail' : 'drop'))
     };
 
     ws.onerror = function(evt) {
@@ -630,7 +630,7 @@ function sendToHexapod(msg) {
 function remoteConnected() {
     // The URL is valid
     // Update the app version by requesting it from the remote
-    pubSub.publish('to_bot', {action: 'version'});
+    Q.pub('to_bot', {action: 'version'});
 
     // When we're connected, the test button and WS URL input box must be
     // disabled.
@@ -683,23 +683,23 @@ function main() {
 
     // Create a handler to send all messages destined for the hexabot via the
     // websocket.
-    pubSub.subscribe('to_bot', sendToHexapod)
+    Q.sub('to_bot', sendToHexapod)
 
     // Ping handler
-    pubSub.subscribe('active', stat => {
+    Q.sub('active', stat => {
         if (stat === 'ping')
-            pubSub.publish('to_bot', {action: 'pong'});
+            Q.pub('to_bot', {action: 'pong'});
     });
     // Updater for the version
-    pubSub.subscribe('version', updateVersion);
+    Q.sub('version', updateVersion);
     // Updater for the memory display
-    pubSub.subscribe('memory', updateMemory);
+    Q.sub('memory', updateMemory);
     // Trim updater
-    pubSub.subscribe('trim', updateTrims);
+    Q.sub('trim', updateTrims);
 
 
     // Monitor for websocket status
-    pubSub.subscribe('websock', stat => {
+    Q.sub('websock', stat => {
         console.log('Websocket status: ', stat);
         switch (stat) {
             case 'connected':

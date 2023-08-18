@@ -17,7 +17,7 @@ window.Q = (function(){
     let topics = {};
 
     return {
-        subscribe: function(topic, listener) {
+        sub: function(topic, listener) {
             // Create the topic's object if not yet created
             if(!Object.hasOwn(topics, topic)) {
                 //console.log("PUBSUB: Creating new topic '" + topic + "'.");
@@ -37,7 +37,7 @@ window.Q = (function(){
                 }
             };
         },
-        publish: function(topic, info) {
+        pub: function(topic, info) {
             // If the topic doesn't exist we simply return
             if(!Object.hasOwn(topics, topic)) {
                 console.log("PUBSUB: Topic '" + topic + "' does not exist for publishing to.");
@@ -151,46 +151,6 @@ function navChange(event) {
 }
 
 /**
- * Called wherever a steer button is pressed.
- *
- * Args:
- *  event: The press event.
- *  dir: The direction: 'fwd', 'rev', 'rotr' or 'rotl'
- **/
-function steerEvent(event, dir) {
-    console.log(event);
-    let opts = {
-        'url': `${base_url}/steer`,
-        'method': 'POST',
-        'contentType': 'application/json',
-        'data': JSON.stringify({'dir': dir})
-    };
-
-    console.log("Steering change:", dir);
-
-    // Call the API to set the steering
-    ajax(opts).then(
-        // Success
-        function(res) {
-            // Remove the active state from all steer icons
-            const ctrl = event.target.closest('div.control')
-            ctrl.querySelectorAll('div.material-icons')
-                .forEach(item => item.classList.remove('active'));
-            // Make the clicked target active
-            event.target.classList.add('active');
-            // Set the steering angle
-            const angle = ctrl.querySelector('input[name=angle]');
-            angle.value = res.responseJSON.angle;
-            angle.nextElementSibling.innerHTML = `${res.responseJSON.angle}${angle.dataset.unit}`;
-        },
-        // Error
-        function(err) {
-            popupMessage("Steer error: " + err, type='err');
-        }
-    );
-}
-
-/**
  * Updates the version display
  *
  * Args:
@@ -290,34 +250,149 @@ function updateControlUI() {
     updateSlider('stroke', 'strk', 'stroke');
 }
 
+/*################## MOTION HANDLING #################*/
 /**
- * Called when the pause / run button is clicked to toggle pause/run mode.
+ * Callback for when we receive a motion update - either run or pause.
+ *
+ * Note this indicates the current motion setting on the Hexapod. Since the
+ * button we are managing for this is a toggel, it needs to be set to the
+ * opposite state as the current state we received.
+ *
+ * Args:
+ *  val (str): "run|pause" or "err:Error message"
  **/
-function playPauseEvent(event) {
-    // Determine the new state by looking at the current button name.
-    let new_state = event.target.innerText === "play_circle" ? "run" : "pause";
+function updateMotion(val) {
+    console.log("Received motion state: ", val);
 
-    Q.pub('motion', new_state);
+    let elem;
 
-    let opts = {
-        'url': `${base_url}/${new_state}`,
-        'method': 'POST',
-        'contentType': 'application/json',
-    };
-
-    // Call the API to run or pause based on the desired new state
-    ajax(opts).then(
-        function(res) {
-            console.log(res);
-            // Update the button icon
-            if (new_state === "pause") {
-                event.target.innerText = "play_circle";
-            } else {
-                event.target.innerText = "pause_circle";
-            }
-        }
-    );
+    // Error?
+    if (val.startsWith("err:")) {
+        popupMessage(`Error in motion control: ${val.replace(/^err:/,'')}.`, type='err')
+        return;
+    }
+    // Get the run/pause div element
+    elem = document.querySelector("div.sect.control div.run");
+    // Set the data-next attribute as well as the icon to use
+    if (val === 'run') {
+        // Currently in the run state, so we need to set the button to become a
+        // pause button
+        elem.dataset.next = 'pause';
+        elem.innerText = "pause_circle";
+    } else {
+        // Currently in the pause state, so we need to set the button to become a
+        // run button
+        elem.dataset.next = 'run';
+        elem.innerText = "play_circle";
+    }
 }
+/*################## END: MOTION HANDLING #################*/
+
+/*################## STEERING HANDLING #################*/
+/**
+ * Callback for when we receive a direction update.
+ *
+ * Note this indicates the current steer or rotation direction setting on the
+ * Hexapod.
+ *
+ * Args:
+ *  val (str): "fwd|rev|rotr|rotl" or "err:Error message"
+ **/
+function updateDirection(val) {
+    console.log("Received direction state: ", val);
+
+    let elems;
+
+    // Error?
+    if (val.startsWith("err:")) {
+        popupMessage(`Error in motion control: ${val.replace(/^err:/,'')}.`, type='err')
+        return;
+    }
+    // Remove the active state from all steer icons
+    elems = document.querySelector("div.sect.control");
+    elems.querySelectorAll('div.material-icons')
+        .forEach(item => item.classList.remove('active'));
+    // Activate the current steer direction
+    elems.querySelector(`div.${val}.material-icons`).classList.add('active');
+}
+
+/**
+ * Callback for when we receive a steering angle update.
+ *
+ * Note this indicates the current steer angle on the Hexapod.
+ *
+ * Args:
+ *  val (str): "[-]int" or "err:Error message"
+ **/
+function updateAngle(val) {
+    console.log("Received steer angle value: ", val);
+
+    let elem;
+
+    // Error?
+    if (val.startsWith("err:")) {
+        popupMessage(`Error in motion control: ${val.replace(/^err:/,'')}.`, type='err')
+        return;
+    }
+    // Find the angle slider input element
+    elem = document.querySelector("div.sect.control input[name=angle]");
+    // Set the value on the slider
+    elem.value = val;
+    // And also the numeric angle indicator using the default unit
+    elem.nextElementSibling.innerHTML = `${val}${elem.dataset.unit}`;
+}
+
+/**
+ * Callback for when we receive a speed percentage update.
+ *
+ * Note this indicates the current speed percentage on the Hexapod.
+ *
+ * Args:
+ *  val (str): "int" or "err:Error message"
+ **/
+function updateSpeed(val) {
+    console.log("Received speed percentage: ", val);
+
+    let elem;
+
+    // Error?
+    if (val.startsWith("err:")) {
+        popupMessage(`Error in speed setting: ${val.replace(/^err:/,'')}.`, type='err')
+        return;
+    }
+    // Find the speed slider input element
+    elem = document.querySelector("div.sect.control input[name=speed]");
+    // Set the value on the slider
+    elem.value = val;
+    // And also the numeric angle indicator using the default unit
+    elem.nextElementSibling.innerHTML = `${val}${elem.dataset.unit}`;
+}
+/**
+ * Callback for when we receive a stroke percentage update.
+ *
+ * Note this indicates the current stroke percentage on the Hexapod.
+ *
+ * Args:
+ *  val (str): "int" or "err:Error message"
+ **/
+function updateStroke(val) {
+    console.log("Received stroke percentage: ", val);
+
+    let elem;
+
+    // Error?
+    if (val.startsWith("err:")) {
+        popupMessage(`Error in stroke setting: ${val.replace(/^err:/,'')}.`, type='err')
+        return;
+    }
+    // Find the speed slider input element
+    elem = document.querySelector("div.sect.control input[name=stroke]");
+    // Set the value on the slider
+    elem.value = val;
+    // And also the numeric angle indicator using the default unit
+    elem.nextElementSibling.innerHTML = `${val}${elem.dataset.unit}`;
+}
+/*################## END: STEERING HANDLING #################*/
 
 /*################## TRIM HANDLING #################*/
 /**
@@ -325,7 +400,7 @@ function playPauseEvent(event) {
  **/
 function getTrimSettings() {
     console.log("Requesting trim settings...");
-    Q.pub('to_bot', {action: 'trim'});
+    Q.pub('to_bot', 'trim');
 }
 
 /**
@@ -424,7 +499,7 @@ function centerServosEvent() {
  * is moved, and also hide it again when released.
  **/
 function sliderEvent(event) {
-    // The value div is expected to the next element after the target in the
+    // The value div is expected to be the next element after the target in the
     // DOM.
     const val_div = event.target.nextElementSibling;
     // Get the value in text format including the unit from the input element
@@ -437,6 +512,9 @@ function sliderEvent(event) {
             break;
         case "change":
             console.log(`Gonna set ${event.target.name} to ${event.target.value}`);
+            // Send the command
+            Q.pub('to_bot', {action: event.target.dataset.action, args: event.target.value});
+            break;
             // Set up the AJAX call
             let opts = {
                 'url': `${base_url}/${event.target.dataset.endpoint}`,
@@ -471,16 +549,6 @@ function attachRangeSliderEvents() {
         // used to make the API call.
         slider.addEventListener("change", sliderEvent);
     });
-}
-
-/**
- * Called when any of the sliders are changed
- **/
-function sliderChange(event, measure) {
-    console.log("Slider change: ", event);
-    let val_elem = event.target.parentElement.querySelector('.val')
-
-    val_elem.textContent = event.target.value + measure;
 }
 
 /**
@@ -585,7 +653,7 @@ function wsConnect() {
  *     'args': ...          // Optional args required by the action
  *  }
  *
- * The action and args data will be combined in an 'action:[args...]' string
+ * The action and args data will be combined in an 'action[:args...]' string
  * and sent on the websock to the hexapod via the websocket if connected. If
  * not connected and error will be logged to the console.
  *
@@ -593,24 +661,37 @@ function wsConnect() {
  * before sending.
  *
  * Note that if args is undefined or null, no args will be sent.
+ *
+ * If the action does not need any args, then msg can just be a string and it
+ * will be sent as is.
  **/
 function sendToHexapod(msg) {
-    // We must have an action property
-    if (!Object.hasOwn(msg, 'action')) {
-        console.log(
-            "Invalid message structure to send to hexapod. " +
-            "No 'action' property: ", msg
-        );
-        return;
+    let dat;
+    let args = undefined;
+
+    if (typeof msg === "string") {
+        dat = msg;
+    } else {
+        // We must have an action property
+        if (!Object.hasOwn(msg, 'action')) {
+            console.log(
+                "Invalid message structure to send to hexapod. " +
+                "No 'action' property: ", msg
+            );
+            return;
+        }
+        // Get the action
+        dat = msg.action;
+        // Do we need to convert the args object a JSON string?
+        if (msg.args !== null && msg.args !== undefined && typeof msg.args === "object") {
+            args = JSON.stringify(msg.args);
+        } else {
+            args = msg.args;
+        }
     }
-    // Get the action
-    dat = msg.action;
-    // Do we need to convert the args object a JSON string?
-    if (msg.args !== null && msg.args !== undefined && typeof msg.args === "object") {
-        msg.args = JSON.stringify(msg.args);
-    }
+
     // Only add the args if it is not undefined
-    if (msg.args !== undefined) dat = dat + `:${msg.args}`;
+    if (args !== undefined) dat = dat + `:${args}`;
 
     // Can we send it?
     if (!ws) {
@@ -630,7 +711,7 @@ function sendToHexapod(msg) {
 function remoteConnected() {
     // The URL is valid
     // Update the app version by requesting it from the remote
-    Q.pub('to_bot', {action: 'version'});
+    Q.pub('to_bot', 'version');
 
     // When we're connected, the test button and WS URL input box must be
     // disabled.
@@ -688,7 +769,7 @@ function main() {
     // Ping handler
     Q.sub('active', stat => {
         if (stat === 'ping')
-            Q.pub('to_bot', {action: 'pong'});
+            Q.pub('to_bot', 'pong');
     });
     // Updater for the version
     Q.sub('version', updateVersion);
@@ -696,7 +777,18 @@ function main() {
     Q.sub('memory', updateMemory);
     // Trim updater
     Q.sub('trim', updateTrims);
-
+    // Motion updater
+    Q.sub('motion', updateMotion);
+    // Steer direction updater
+    Q.sub('dir', updateDirection);
+    // Steer angle updater
+    Q.sub('angle', updateAngle);
+    // Speed updater
+    Q.sub('speed', updateSpeed);
+    // Stroke updater
+    Q.sub('stroke', updateStroke);
+    // Obstacle detection
+    Q.sub('obst', updateObstacleDist);
 
     // Monitor for websocket status
     Q.sub('websock', stat => {

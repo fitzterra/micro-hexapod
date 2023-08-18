@@ -159,6 +159,12 @@ def _handleException(_, context):
     Global uasyncio exception handler.
     """
     # This is in micropython sys module @pylint: disable=no-member
+    print("Shit just happened....")
+    if isinstance(context['exception'], TypeError):
+        print("Looks like the browser reloaded. Gonna ignore this:")
+        sys.print_exception(context['exception'])
+        return
+    # Some other error
     sys.print_exception(context['exception'])
     sys.exit()
 

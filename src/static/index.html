@@ -67,49 +67,50 @@
                         <div class="dist"></div>
                     </div>
                     <div class="fwd grid-item material-icons"
-                         onclick="steerEvent(event, 'fwd')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'fwd'})">
                         arrow_circle_up
                     </div>
                     <div class="rotr grid-item material-icons"
                         style="transform: rotateY(180deg)"
-                        onclick="steerEvent(event, 'rotr')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'rotr'})">
                         settings_backup_restore
                     </div>
                     <div class="rev grid-item material-icons"
-                        onclick="steerEvent(event, 'rev')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'rev'})">
                         arrow_circle_down
                     </div>
                     <div class="rotl grid-item material-icons"
-                        onclick="steerEvent(event, 'rotl')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'rotl'})">
                         settings_backup_restore
                     </div>
                     <div class="run grid-item material-icons"
-                        onclick="playPauseEvent(event)">
+                         data-next="run"
+                         onclick="Q.pub('to_bot', {action: 'motion', args: event.target.dataset.next})">
                         play_circle
                     </div>
                     <div class="cntr grid-item material-icons"
-                         onclick="centerServosEvent();">
+                         onclick="Q.pub('to_bot', 'center');">
                         adjust
                     </div>
                     <div class="angle grid-item slider">
                         <div class="label">Steer Angle</div>
                         <!-- The angle is set via the /steer' endpoint -->
                         <input type="range" name="angle" min=-90 max=90
-                                            data-unit='°' data-endpoint='steer'>
+                                            data-unit='°' data-action='angle'>
                         <div class="val">0°</div>
                     </div>
                     <div class="spd grid-item slider">
                         <div class="label">Speed</div>
                         <input type="range" name="speed" min=0 max=100
                                             data-unit='%'
-                                            data-endpoint='speed'>
+                                            data-action='speed'>
                         <div class="val">0%</div>
                     </div>
                     <div class="strk grid-item slider">
                         <div class="label">Stroke</div>
                         <input type="range" name="stroke" min=0 max=100
                                             data-unit='%'
-                                            data-endpoint='stroke'>
+                                            data-action='stroke'>
                         <div class="val">0%</div>
                     </div>
                 </div>

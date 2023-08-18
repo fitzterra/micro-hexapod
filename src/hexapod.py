@@ -432,7 +432,7 @@ class Hexapod:
             steer_val (dict): The steering direction and/or angle:
                 {
                     'dir': one of 'fwd', 'rev', 'rotr', 'rotl'
-                    'angle': current angle off the direction
+                    'angle': current angle for the direction
                 }
                 Either 'dir' or 'angle` can be omitted. Angle is optional at
                 all times. If it is given, and the current dir is not 'fwd' or

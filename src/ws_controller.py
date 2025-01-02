@@ -6,8 +6,14 @@ from webserver import gc, app, logging
 from microdot_asyncio_websocket import with_websocket
 from version import VERSION
 import ulogging as logging
+import ujson
 
-PING_DELAY = 5 # seconds
+PING_DELAY = 10 # seconds
+MEM_UPDATE_FREQ = 10 # seconds
+# This is an indicator to do or to not to do, obstacle detection. Obstacle
+# detection and reporting could at times be bad for response, so it can be
+# toggle on of off via the websocket interface.
+OBST_DETECT = False
 
 async def ping(wsock):
     """
@@ -22,10 +28,23 @@ async def ping(wsock):
         logging.info("Sending ping...")
         await wsock.send('active:ping')
 
+async def memory(wsock):
+    """
+    Task to send regular memory status updates to the UI.
+
+    Args:
+        wsock (socket): The web socket once the connection was been made.
+    """
+    while True:
+        await uasyncio.sleep(MEM_UPDATE_FREQ)
+        mem = f"{gc.mem_alloc()}:{gc.mem_free()}"
+        logging.info("Sending mem update: %s ...", mem)
+        await wsock.send(f"memory:{mem}")
+
 async def obstacleReporter(hexapod, wsock, interval=1000):
     """
     Task to query the hexapod for any obstacles and if any, report it on the
-    websocket.
+    websocket - only if OBST_DETECT is True.
 
     If the hexapod does not have a distance sensor configured (obstacle
     property returns -1), this task will exit.
@@ -43,6 +62,11 @@ async def obstacleReporter(hexapod, wsock, interval=1000):
 
     has_cleared = True
     while True:
+        # If detection is off, we only sleep and then rinse and repeat
+        if not OBST_DETECT:
+            await uasyncio.sleep_ms(interval)
+            continue
+
         dist = hexapod.obstacle
         # Obstacle?
         if dist is not None:
@@ -283,17 +307,32 @@ async def websock(request, ws):
     is closed.
 
     Args:
-        _ : The request object. Unused in this case
+        request: The request object.
         ws (socket): The websocket instance.
     """
+    global OBST_DETECT
+
+    # We have attached the hexapod controller instance to the app, so we can
+    # get it here for easier access.
     hexapod = request.app.hexapod
 
     # Create the tasks
-    uasyncio.create_task(ping(ws))
+    #uasyncio.create_task(ping(ws))
+    #uasyncio.create_task(memory(ws))
     uasyncio.create_task(obstacleReporter(hexapod, ws))
 
+    # Send the initial hexapod state so the UI can update itself
+    await ws.send(f"trim:{handleTrim(None, hexapod)}")
+    await ws.send(f"motion:{'pause' if hexapod.pause else 'run'}")
+    await ws.send(f"dir:{hexapod.steer['dir']}")
+    await ws.send(f"angle:{hexapod.steer['angle']}")
+    await ws.send(f"speed:{hexapod.speed}")
+    await ws.send(f"stroke:{hexapod.stroke}")
+    await ws.send(f"obst:{'on' if OBST_DETECT else 'off'}")
+    await ws.send(f"memory:{gc.mem_alloc()}:{gc.mem_free()}")
+
     while True:
-        # Wait for a message and then split iton the first colon into action
+        # Wait for a message and then split it on the first colon into action
         # and arguments
         data = await ws.receive()
         data = data.split(':', 1)
@@ -312,6 +351,20 @@ async def websock(request, ws):
             response = f"version:{VERSION}"
         elif action == 'memory':
             response = f"memory:{gc.mem_alloc()}:{gc.mem_free()}"
+        elif action == 'osc':
+            response = f"osc:{ujson.dumps(hexapod.oscState)}"
+        elif action == 'obst':
+            # We only accept 'on', 'off' or 'toggle' here
+            if not args in ('on', 'off', 'toggle'):
+                response = f"err:invalid obstacle switch command: {args}"
+            else:
+                if args == 'toggle':
+                    OBST_DETECT = not OBST_DETECT
+                elif args == 'on':
+                    OBST_DETECT = True
+                else:
+                    OBST_DETECT = False
+                response = (f"obst:{'on' if OBST_DETECT else 'off'}")
         elif action == 'pong':
             logging.info("Received pong...")
         elif action == 'center':

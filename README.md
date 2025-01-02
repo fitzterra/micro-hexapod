@@ -80,7 +80,7 @@ Keys are:
 
 ###### version
 
-**Format**: `version:[maj.min.patch]`
+**Format**: `version[:maj.min.patch]`
 
 * `HP`: responds by sending a `version` action with the current API version
 * `CL`: expects a version response with the current API version.
@@ -94,12 +94,39 @@ Keys are:
 
 ###### memory
 
-**Format**: `memory:[alloc:free]`
+**Format**: `memory[:alloc:free]`
 
 * `HP`: responds by sending the currently allocated and free memory as bytes
       values
 * `CL`: expects a memory response with the allocated and free values as
       indicated.
+
+###### osc
+
+**Format**: `osc[:...state...]`
+
+This is an auxiliary action to return the current oscillator state values for
+the three servos, **left**, **mid** and **right**.
+
+The `state` value returned is a list consisting of 3 elements, each of which
+is another list of **state values** for each oscillator. The 3 lists are for the
+`left`, `mid` and `right` oscillators in that order.
+
+Each state values list consists of these elements:
+
+    [ 
+        int,    # Oscillation period in ms,
+        int,    # The amplitude of the oscillation,
+        int,    # Any phase shift applied in degrees,
+        int,    # Any vertical shift applied to the amplitude value,
+        bool,   # Indicates if the phase is reversed.
+        int     # An trim value in degrees
+    )
+
+The returned state lists is a JSON format string.
+
+* `HP`: responds by sending the oscillator state values list.
+* `CL`: expects a response as defined above.
 
 ###### trim
 
@@ -165,12 +192,16 @@ Keys are:
 
 ###### obst
 
-**Format**: `obst:float|clear`
+**Format**: `obst:float|clear|on|off|toggle`
 
-* `HP`: ignored
+* `HP`: Only reacts with `on`, `off` or `toggle` args to either switch **on**
+      obstacle detection and reporting, swith it **off**, or **toggle** it from
+      on to off, or vice versa
 * `CL`: indicator that an obstacle was detected and the distance in mm as a
       float, or that a previous obstacle has now been clearer with an argument
-      of 'clear'
+      of 'clear'. This only happens if obstacle detection is currently on.
+      Could also receive an 'on' or 'off' from the Hexapod to indicate that
+      detection is now on or off.
 
 ### Web Interface
 

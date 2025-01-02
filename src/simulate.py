@@ -176,7 +176,6 @@ loop = uasyncio.get_event_loop()
 loop.set_exception_handler(_handleException)
 logging.info("Setting up Hexapod.")
 hexapod = hexapod_mod.Hexapod(conf['pins'], conf['echo_sense'])
-#hexapod = hexapod_mod.Hexapod(conf['pins'])
 
 webapp.hexapod = hexapod
 loop.create_task(runserver(port=5000))

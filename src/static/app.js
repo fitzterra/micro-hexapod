@@ -7,7 +7,9 @@
  * pass messages between different parts of the UI.
  *
  * See here: https://davidwalsh.name/pubsub-javascript
- * The window idea comes from here: https://dev.to/adancarrasco/implementing-pub-sub-in-javascript-3l2e
+ * 
+ * The window idea comes from here:
+ * https://dev.to/adancarrasco/implementing-pub-sub-in-javascript-3l2e
  *
  * Reading this makes my eyes bleed!!, but the principle is clear. JavaScript
  * sucks!!!
@@ -63,13 +65,30 @@ let ws_url = localStorage.getItem('ws_url') || 'ws://' + location.host + '/ws';
 let ws = null;
 
 /**
- * Opens the modal dialog as the message type and displays the message
+ * Opens a modal dialog as the message type and displays the message
  * provided.
+ *
+ * Expects a DOM element as follows to be present:
+ *
+ *     <dialog class="msg">
+ *         <div class="msg"></div>
+ *         <button onclick="event.target.closest('dialog').close();">
+ *         </button>
+ *     </dialog>
+ * 
+ * Args:
+ *  msg (str): The message to display
+ *  type (str): This will be added directly as a class to the <dialog> element
+ *      which allows different dialog types (info, err, etc.) to be defined
+ *      with CSS
+ *  button (str): The action button text to show. Clicking this button will
+ *      also close the dialog.
+ *
  **/
 function popupMessage(msg, type=null, button="OK") {
     dialog = document.querySelector("dialog.msg");
     msg_div = dialog.querySelector("div.msg");
-    button = dialog.querySelector("button");
+    btn = dialog.querySelector("button");
 
     msg_div.innerHTML = msg;
     // Reset the class to only message to clear any previously added types
@@ -77,12 +96,15 @@ function popupMessage(msg, type=null, button="OK") {
     if (type) {
         dialog.classList.add(type);
     }
+    // Set the button text
+    btn.innerHTML = button;
+    //Show it
     dialog.showModal();
 }
 
 /**
- * On input event for the WebSocket URL input under the settings, as well as the
- * click event for the Test button in the same place.
+ * On input event handler for the WebSocket URL input under the settings, as
+ * well as the click event for the Test button in the same place.
  **/
 function manageWebSockURL(event) {
     // The event is either click for the test button, of input for the input
@@ -169,85 +191,47 @@ function updateVersion(version) {
  *  mem (str): The memory as "allocated:free" bytes
  ***/
 function updateMemory(mem) {
-    //TODO: Need to be implemented
-
-    mem = mem.split(':')
-    console.log(`Bot memory: allocated=${mem[0]}, free=${mem[1]}`);
+    mem = mem.replace(':', ' / ');
+    console.log(`Bot memory: allocated/free: ${mem}`);
     // Get the memory element
-    //let elem = document.querySelector("div.app_version span");
-    //elem.textContent = version
+    let elem = document.querySelector("div.info div.mem div.dat");
+    elem.textContent = mem;
 }
 
 /**
- * Called to update the control UI elements to show the active steering
- * direction, the steer angle, the speed and stroke settings.
- **/
-function updateControlUI() {
-    // We'll be making API calls for each of the parts, but in future, it may
-    // be good to have a single API call that returns all this in one go.
+ * Updates the oscillator state display
+ *
+ * Args:
+ *  state (str): A JSON string with the current oscillator state settings.
+ ***/
+function updateOscState(state) {
+    // First parse the JSON we receive to a proper list of list
+    const oscState = JSON.parse(state);
+    console.log('Oscillators state:', oscState);
 
-    // Get the outer control div elemt
-    let control = document.querySelector("div.sect.control");
-
-    // First the steer options
-    let opts = {
-        'url': `${base_url}/steer`,
-        'method': 'GET',
-        'contentType': 'application/json',
-    };
-    // Do it
-    ajax(opts).then(
-        // Success
-        function(res) {
-            console.log("Steer:", res.responseJSON);
-            // First remove the active class from all direction icons
-            control.querySelectorAll("div.material-icons")
-                .forEach(ctrl => ctrl.classList.remove("active"));
-            // Now set the correct direction to active
-            control.querySelector(`div.grid-item.${res.responseJSON.dir}`).classList.add('active');
-            // Get the angle slider element
-            const angle = control.querySelector("div.grid-item.angle input")
-            // Set it's angle value...
-            angle.value = res.responseJSON.angle;
-            // ...and also the angle indicator
-            angle.nextElementSibling.innerText = `${angle.value}${angle.dataset.unit}`;
-        },
-        // Error
-        function(err) {
-            console.log("Steer error: ", err);
+    // Get the oscillator states table
+    let table = document.querySelector("div.sect.oscState table");
+    // These will be used to cycle over servos and their parameters
+    let servo = 0;
+    let param = 0;
+    let cells;
+    // Cycle through the available oscillators at the top level
+    while (servo < oscState.length) {
+        // Get a query set corresponding to the column of cells for all
+        // parameters of this oscillator. Each row in the table has an initial
+        // <th> elements, and the nth-child selector is 1 based, so we need to
+        // add 2 to get to the correct row level <td> cell
+        cells = table.querySelectorAll(`tr td:nth-child(${servo+2})`)
+        // Reset the parameter counter
+        param = 0;
+        // Cycle through all oscillator parameters, dropping them in each
+        // column cell.
+        while (param < oscState[servo].length) {
+            cells[param].textContent = oscState[servo][param];
+            param++;
         }
-    );
-
-    // Function update any of the angle, speed or stroke sliders.
-    function updateSlider(endpoint, cls_name, resp_name) {
-        const opts = {
-            'url': `${base_url}/${endpoint}`,
-            'method': 'GET',
-            'contentType': 'application/json',
-        };
-        // Do it
-        ajax(opts).then(
-            // Success
-            function(res) {
-                // Get the slider input element from the clas name
-                const elem = control.querySelector(`div.grid-item.${cls_name} input`)
-                console.log(`Updating ${elem.name}: ${res.responseJSON[resp_name]}`);
-                // Set it's input value using the resp_name attribute we expect
-                // in the response...
-                elem.value = res.responseJSON[resp_name];
-                // ...and also the angle indicator
-                elem.nextElementSibling.innerText = `${elem.value}${elem.dataset.unit}`;
-            },
-            // Error
-            function(err) {
-                console.log("Stroke error: ", err);
-            }
-        );
+        servo++;
     }
-
-    // the speed
-    updateSlider('speed', 'spd', 'speed');
-    updateSlider('stroke', 'strk', 'stroke');
 }
 
 /*################## MOTION HANDLING #################*/
@@ -552,24 +536,40 @@ function attachRangeSliderEvents() {
 }
 
 /**
- * Updates the obstacle distance indicator with a new distance value
+ * Updates the obstacle distance indicator with a new distance value is
+ * received, or if the detection state is switched on or off.
  *
  * Args:
- *  dist (float): The distance measurement in mm. If null, then the distance
- *      indicator is hidden.
+ *  dist (float|str): One of the following:
+ *      * 'on'    - obstacle detection is switched on
+ *      * 'off'   - obstacle detection is switched off
+ *      * 'clear' - a previously detected obstacle has cleared
+ *      * int     - an obstacle has been detected at this distance in mm
  **/
 function updateObstacleDist(dist) {
     console.log("Updatinbg obtacle distance:", dist);
     let obst_elem = document.querySelector('div.steer div.grid-item.obst');
     let dist_elem = obst_elem.querySelector('div.dist');
 
-    if (dist === 'clear') {
-        obst_elem.style.display = "none";
+    if (dist == 'on') {
+        obst_elem.classList.remove('off');
+        return;
+    }
+    if (dist == 'off') {
+        obst_elem.classList.add('off');
+        obst_elem.classList.add('clear');
+        dist_elem.textContent = '';
         return;
     }
 
-    // Make sure it's visibale in case it was hidden before.
-    obst_elem.style.display = "block";
+    if (dist === 'clear') {
+        obst_elem.classList.add('clear');
+        dist_elem.textContent = '';
+        return;
+    }
+
+    // We're not clear anymore, and we update the distance.
+    obst_elem.classList.remove('clear');
     dist_elem.textContent = Number(dist).toFixed(1);
 }
 
@@ -724,9 +724,7 @@ function remoteConnected() {
     nav_item.dispatchEvent(new Event("click", {target: nav_item}));
 
     // Update the trim settings
-    getTrimSettings();
-    // Update the UI
-    ////  updateControlUI();
+    //getTrimSettings();
 }
 
 /**
@@ -775,6 +773,8 @@ function main() {
     Q.sub('version', updateVersion);
     // Updater for the memory display
     Q.sub('memory', updateMemory);
+    // Handler for the oscillator state response
+    Q.sub('osc', updateOscState);
     // Trim updater
     Q.sub('trim', updateTrims);
     // Motion updater

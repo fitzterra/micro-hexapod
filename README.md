@@ -6,8 +6,24 @@ Micro Hexapod Robot
 1. [Introduction](#introduction)
 2. [Locomotion](#locomotion)
 3. [Firmware](#firmware)
-4. [Operation](#operation)
-5. [Development](#development)
+	1. [Control Protocol](#control-protocol)
+		1. [Web Sockets](#web-sockets)
+			1. [WS Actions](#ws-actions)
+				1. [version](#version)
+				2. [active](#active)
+				3. [memory](#memory)
+				4. [trim](#trim)
+				5. [center](#center)
+				6. [motion](#motion)
+				7. [dir](#dir)
+				8. [speed](#speed)
+				9. [angle](#angle)
+				10. [stroke](#stroke)
+				11. [obst](#obst)
+	2. [Web Interface](#web-interface)
+	3. [Python](#python)
+2. [Operation](#operation)
+3. [Development](#development)
 	1. [3D Design](#3d-design)
 	2. [Firmware](#firmware)
 		1. [Dev environment](#dev-environment)
@@ -34,7 +50,162 @@ _TBD - describe the locomotion_
 
 ## Firmware
 
-_TBD - describe the code_
+### Control Protocol
+
+#### Web Sockets
+
+For control over a WebSocket (WS), the Hexapod will listen for a WS connection
+on the URI `http://hostname.dom.main/ws`. Once the WS connection has been
+established, it uses a very simple protocol for communication.
+
+All messages are made up as string with the format:
+
+    action[:args]
+
+where:  
+    `action`: is a predefined action string - see below
+    `args`:   optional arguments that the action may require. This could be any
+            format that makes sense for the action. For simple arguments this
+            could a single string, or a colon separated args string. For more
+            complex args, this could be a JSON encoded string.
+
+##### WS Actions
+
+The various actions currently supported by the WS protocol is defined below.
+
+Keys are:
+
+* `HP` : When received by the Hexapod
+* `CL` : When received by the JS UI client.
+
+###### version
+
+**Format**: `version[:maj.min.patch]`
+
+* `HP`: responds by sending a `version` action with the current API version
+* `CL`: expects a version response with the current API version.
+
+###### active
+
+**Format**: `active:ping|pong`
+
+* `HP`: responds to a ping by sending `pong`
+* `CL`: responds to a ping by sending `pong`
+
+###### memory
+
+**Format**: `memory[:alloc:free]`
+
+* `HP`: responds by sending the currently allocated and free memory as bytes
+      values
+* `CL`: expects a memory response with the allocated and free values as
+      indicated.
+
+###### osc
+
+**Format**: `osc[:...state...]`
+
+This is an auxiliary action to return the current oscillator state values for
+the three servos, **left**, **mid** and **right**.
+
+The `state` value returned is a list consisting of 3 elements, each of which
+is another list of **state values** for each oscillator. The 3 lists are for the
+`left`, `mid` and `right` oscillators in that order.
+
+Each state values list consists of these elements:
+
+    [ 
+        int,    # Oscillation period in ms,
+        int,    # The amplitude of the oscillation,
+        int,    # Any phase shift applied in degrees,
+        int,    # Any vertical shift applied to the amplitude value,
+        bool,   # Indicates if the phase is reversed.
+        int     # An trim value in degrees
+    )
+
+The returned state lists is a JSON format string.
+
+* `HP`: responds by sending the oscillator state values list.
+* `CL`: expects a response as defined above.
+
+###### trim
+
+**Format**: `trim:[left:mid:right:[center]]`
+
+* `HP`: sets and saves the servo trim values if the trim values have been
+      passed in. The center field is optional and if supplied should be 'true'
+      or 'false', defaulting to false if not supplied. If true, the servos will
+      be centered after setting the trim values.  Always responds with the
+      current trim values.
+* `CL`: expects a response as indicated with current trim value - sans the
+      center field. If there was an error setting the values, the args string
+      will be "err:error message"
+
+###### center
+
+**Format**: `center`
+
+* `HP`: stops the servos, centers them taking trim values into account.  Since
+      centering the servos will cause the pause state be entered, a
+      `motion:state` response will be received to indicate the current state of
+      motion. No response specific to the centering will be received.
+* `CL`: ignored
+
+###### motion
+
+**Format**: `motion:run|pause`
+
+* `HP`: run or pause the oscillators
+* `CL`: indicator or ''run' or 'pause' to indicate the current state
+
+###### dir
+
+**Format**: `dir:fwd|rev|rotr|rotl`
+
+* `HP`: set the direction to forward or reverse or starts rotating left or
+      right on the spot. Will automatically reset steer angle to 0% and send a
+      `steer` action with newly set 0° angle arg
+* `CL`: indicator that fwd, rev direction, or rotl or rotr rotation have been
+      set
+
+###### speed
+
+**Format**: `speed:int`
+
+* `HP`: set the speed to the integer percentage argument between 0% and 100%
+* `CL`: indicator that current speed has been set to this percentage value
+
+###### angle
+
+**Format**: `angle:[-]int`
+
+* `HP`: set the steering angle to the integer angle between -90° and 90°, with
+      0° being straight ahead
+* `CL`: indicator that steering angle has been set to this angle
+
+###### stroke
+
+**Format**: `stroke:int`
+
+* `HP`: set the stroke to the integer percentage argument between 0% and 100%
+* `CL`: indicator that current stroke has been set to this percentage value
+
+###### obst
+
+**Format**: `obst:float|clear|on|off|toggle`
+
+* `HP`: Only reacts with `on`, `off` or `toggle` args to either switch **on**
+      obstacle detection and reporting, swith it **off**, or **toggle** it from
+      on to off, or vice versa
+* `CL`: indicator that an obstacle was detected and the distance in mm as a
+      float, or that a previous obstacle has now been clearer with an argument
+      of 'clear'. This only happens if obstacle detection is currently on.
+      Could also receive an 'on' or 'off' from the Hexapod to indicate that
+      detection is now on or off.
+
+### Web Interface
+
+### Python
 
 ## Operation
 

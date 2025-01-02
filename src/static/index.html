@@ -18,6 +18,7 @@
             <div class="nav">
                 <span class="material-icons" data-func="control" onclick="navChange(event);">videogame_asset</span>
                 <span class="material-icons" data-func="settings" onclick="navChange(event);">settings_application</span>
+                <span class="material-icons" data-func="oscState" onclick="navChange(event);">schedule</span>
             </div>
 
             <dialog class="msg">
@@ -29,10 +30,10 @@
             </dialog>
 
             <div class="sect settings">
-                <label class="base_url">
-                    API Base URL:
-                    <input type="text" name="base_url" oninput="manageBaseURL(event);">
-                    <button disabled onclick="manageBaseURL(event);">Test</button>
+                <label class="ws_url">
+                    WebSocket URL:
+                    <input type="text" name="ws_url" oninput="manageWebSockURL(event);">
+                    <button disabled onclick="manageWebSockURL(event);">Test</button>
                 </label>
                 <div class="trim">
                     <div class="main_label">Trim:</div>
@@ -57,66 +58,132 @@
                                 onchange="trimChanged(event);">
                         </label>
                     </div>
-                    <button disabled onclick="updateTrims(event);">Update</button>
+                    <button disabled onclick="setTrims(event);">Set</button>
                 </div>
             </div>
 
             <div class="sect control">
                 <div class="steer">
-                    <div class="obst grid-item">
+                    <div class="obst grid-item off"
+                         onclick="Q.pub('to_bot', {action:'obst', args:'toggle'})">
                         <div class="dist"></div>
                     </div>
                     <div class="fwd grid-item material-icons"
-                         onclick="steerEvent(event, 'fwd')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'fwd'})">
                         arrow_circle_up
                     </div>
                     <div class="rotr grid-item material-icons"
                         style="transform: rotateY(180deg)"
-                        onclick="steerEvent(event, 'rotr')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'rotr'})">
                         settings_backup_restore
                     </div>
                     <div class="rev grid-item material-icons"
-                        onclick="steerEvent(event, 'rev')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'rev'})">
                         arrow_circle_down
                     </div>
                     <div class="rotl grid-item material-icons"
-                        onclick="steerEvent(event, 'rotl')">
+                         onclick="Q.pub('to_bot', {action: 'dir', args: 'rotl'})">
                         settings_backup_restore
                     </div>
                     <div class="run grid-item material-icons"
-                        onclick="playPauseEvent(event)">
+                         data-next="run"
+                         onclick="Q.pub('to_bot', {action: 'motion', args: event.target.dataset.next})">
                         play_circle
                     </div>
                     <div class="cntr grid-item material-icons"
-                         onclick="centerServosEvent();">
+                         onclick="Q.pub('to_bot', 'center');">
                         adjust
                     </div>
                     <div class="angle grid-item slider">
                         <div class="label">Steer Angle</div>
                         <!-- The angle is set via the /steer' endpoint -->
                         <input type="range" name="angle" min=-90 max=90
-                                            data-unit='°' data-endpoint='steer'>
+                                            data-unit='°' data-action='angle'>
                         <div class="val">0°</div>
                     </div>
                     <div class="spd grid-item slider">
                         <div class="label">Speed</div>
                         <input type="range" name="speed" min=0 max=100
                                             data-unit='%'
-                                            data-endpoint='speed'>
+                                            data-action='speed'>
                         <div class="val">0%</div>
                     </div>
                     <div class="strk grid-item slider">
                         <div class="label">Stroke</div>
                         <input type="range" name="stroke" min=0 max=100
                                             data-unit='%'
-                                            data-endpoint='stroke'>
+                                            data-action='stroke'>
                         <div class="val">0%</div>
                     </div>
                 </div>
-
             </div>
 
-            <div class='app_version'>Version: <span></span></div>
+            <div class="sect oscState">
+                <table class="states">
+                    <caption>Oscillator States</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col"></th>
+                            <th scope="col">Left</th>
+                            <th scope="col">Mid</th>
+                            <th scope="col">Right</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="period">
+                            <th scope="row">Prd</th>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr class="ampl">
+                            <th scope="row">Amp</th>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr class="ph_sh">
+                            <th scope="row">PhSh</th>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr class="vt_sh">
+                            <th scope="row">VtSh</th>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr class="rev">
+                            <th scope="row">Rev</th>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr class="trim">
+                            <th scope="row">Trim</th>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan=4>
+                                <span onclick="Q.pub('to_bot', 'osc')">Update</span>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="info">
+                <div class='app_version'>Version: <span></span></div>
+                <div class='mem' onclick="Q.pub('to_bot', 'memory')">
+                    <div class="label">mem: alloc/free</div>
+                    <div class="dat"></div>
+                </div>
+            </div>
         </div>
 
     </body>

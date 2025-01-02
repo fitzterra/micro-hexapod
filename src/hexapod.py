@@ -2,6 +2,7 @@
 Hexapod controller.
 """
 import uasyncio
+import gc
 import ulogging as logging
 from lib.servo import ServoOscillator
 from lib.hcsr04 import HCSR04
@@ -21,6 +22,12 @@ ROTL = [180, 90, 0]   # Turn to the left on the spot in a forward direction
 OBS_SAMPLE_DELAY = 10
 # The size of the moving average sample window for averaging obstacle samples
 OBS_SAMPLE_WINDOW = 20
+
+# Default update time for the ServoOscillator class is every 5ms or 200Hz. Most
+# RC servos will need to receive the position update pulse at least every 20ms
+# to keep their position. In order to not hog so much time for updating the
+# servos position, we will change the default update time here to every 15ms
+ServoOscillator.UPDATE_MS = 15
 
 def clamp(val, vmin, vmax):
     """
@@ -94,7 +101,7 @@ class Hexapod:
                         determines how high the other legs are lifted of the
                         ground.
                     'stroke': the amplitude for the left and right legs. This
-                        determines how far the legs are move forwards and
+                        determines how far the legs are moved forwards and
                         backwards, and must be in the STROKE_MAX range.
                 }
         """
@@ -116,6 +123,8 @@ class Hexapod:
         self._getSavedTrim()
         # Create the oscillators
         self._setOscillators()
+        # ... and then center them with trim
+        self.centerServos(True)
         # Will we set by _setupObstacleSensor if an HCSR04 config is supplied
         # in the sense argument
         self._sense = None
@@ -285,6 +294,45 @@ class Hexapod:
         )
 
     @property
+    def oscState(self):
+        """
+        Returns the current servo oscillator state values.
+
+        Returns:
+            A list containing 3 dictionaries for the left, mid and right (in
+            that order) servo state values:
+            [
+                ( state values dict ),   # Left
+                ( state values dict ),   # Mid
+                ( state values dict ),   # Right
+            ]
+
+            The state values tuple looks like this:
+            ( 
+                int,    # Oscillation period in ms,
+                int,    # The amplitude of the oscillation,
+                int,    # Any phase shift applied in degrees,
+                int,    # Any vertical shift applied to the amplitude value,
+                bool,   # Indicates if the phase is reversed.
+                int     # An trim value in degrees
+            )
+        """
+        state = []
+        for servo in self._servos:
+            state.append(
+                (
+                    servo.period,
+                    servo.amplitude,
+                    servo.phase_shift,
+                    servo.vertical_shift,
+                    servo.rev,
+                    servo.trim
+                )
+            )
+
+        return state
+
+    @property
     def params(self):
         """
         Property to return the current servo properties.
@@ -335,6 +383,8 @@ class Hexapod:
         Args:
             paused (bool): True to pause all oscillators, False to unpause
         """
+        # Good time to do garbage collection
+        gc.collect()
         logging.info("%s: Setting pause to: %s", self.LOG_PREFIX, paused)
         self._paused = paused
         # Now set the servo oscillator pause attribute for each leg
@@ -432,7 +482,7 @@ class Hexapod:
             steer_val (dict): The steering direction and/or angle:
                 {
                     'dir': one of 'fwd', 'rev', 'rotr', 'rotl'
-                    'angle': current angle off the direction
+                    'angle': current angle for the direction
                 }
                 Either 'dir' or 'angle` can be omitted. Angle is optional at
                 all times. If it is given, and the current dir is not 'fwd' or
